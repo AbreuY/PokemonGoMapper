@@ -23,6 +23,9 @@ import java.util.Collection;
 import java.util.HashSet;
 
 public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
+    private static final long LOCATION_UPDATE_POLL = 1000 * 10; // 10 seconds
+    private static final long RESET_TIMEOUT = 1000 * 60 * 5; // 5 minutes
+
     private static final String TAG = "PokemonGoMapper";
 
     private static PokemonNetwork sInstance;
@@ -61,19 +64,41 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
     private Thread mPokemonThread;
 
     private class PokemonThread extends Thread {
+
         public PokemonThread() {
             super(new Runnable() {
                 @Override
                 public void run() {
-                    Location loc = mLocationFinder.getMyLocation();
-
                     HashSet<S2CellId> visitedCells = new HashSet<>();
                     ArrayDeque<S2CellId> cellQueue = new ArrayDeque<>();
-                    cellQueue.push(S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.getLatitude(), loc.getLongitude())).parent(15));
+                    Location loc;
+                    S2CellId locCell = null;
+                    long resetTime = 0;
+                    long locationTime = 0;
 
                     while(true) {
                         if (Thread.currentThread().isInterrupted()) {
                             return;
+                        }
+
+                        // Reset the visited cells, so we update with new pokemon
+                        long time = System.currentTimeMillis();
+                        if (time > resetTime) {
+                            cellQueue.clear();
+                            visitedCells.clear();
+                            resetTime = time + RESET_TIMEOUT;
+                        }
+
+                        // Update center point if we've moved out of the original cell
+                        if (time > locationTime) {
+                            loc = mLocationFinder.getMyLocation();
+                            S2CellId newLocCell = S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.getLatitude(), loc.getLongitude())).parent(15);
+                            if (newLocCell != locCell) {
+                                locCell = newLocCell;
+                            }
+                            cellQueue.clear();
+                            cellQueue.push(locCell);
+                            locationTime = time + LOCATION_UPDATE_POLL;
                         }
 
                         try {
@@ -84,6 +109,13 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
 
                         // Process current cell
                         S2CellId curCell = cellQueue.peek();
+
+                        // Shouldn't happen, so lets just reset
+                        if (curCell == null) {
+                            locationTime = resetTime = 0;
+                            continue;
+                        }
+
                         S2LatLng latLng = curCell.toLatLng();
 
                         MapObjects mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 1);
