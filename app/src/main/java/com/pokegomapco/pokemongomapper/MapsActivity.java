@@ -32,6 +32,7 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -44,6 +45,8 @@ import java.util.List;
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, PokemonManager.PokemonListener,
         GmsLocationFinder.ConnectionListener {
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 1337;
+
+    private static final String ADS_ID = "ca-app-pub-8757602030251852~3749471126";
 
     private static final String BUNDLE_KEY_CAMERA = "camera";
     private static final String BUNDLE_KEY_FILTER = "filter";
@@ -92,7 +95,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             connectToPokemon();
         }
 
-        MobileAds.initialize(getApplicationContext(), "ca-app-pub-8757602030251852~3749471126");
+        MobileAds.initialize(getApplicationContext(), ADS_ID);
         AdView mAdView = (AdView) findViewById(R.id.adView);
         AdRequest adRequest = new AdRequest.Builder().addTestDevice("3BB53778AAAF2CE1AF6ADE3B706393DA").build();
         mAdView.loadAd(adRequest);
@@ -141,7 +144,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 builder.setPositiveButton("Apply", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        mFilter = mTempFilter;
+                        mFilter = Arrays.copyOf(mTempFilter, mTempFilter.length);
                         applyFilter();
                     }
                 });
@@ -249,13 +252,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         outState.putBooleanArray(BUNDLE_KEY_FILTER, mFilter);
-        outState.putParcelable(BUNDLE_KEY_FILTER, mMap.getCameraPosition());
+        outState.putParcelable(BUNDLE_KEY_CAMERA, mMap.getCameraPosition());
 
         super.onSaveInstanceState(outState);
     }
 
     @SuppressWarnings("MissingPermission")
     private void startPollingForPokemon() {
+        mPokemonManager.startSearching();
         mMap.setMyLocationEnabled(true);
 
         if (mSavedCameraPosition == null) {

@@ -1,11 +1,14 @@
 package com.pokegomapco.pokemongomapper;
 
+import POGOProtos.Map.Pokemon.MapPokemonOuterClass;
+import POGOProtos.Map.Pokemon.NearbyPokemonOuterClass;
 import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
 import POGOProtos.Networking.EnvelopesOuterClass;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.location.Location;
 import android.util.Log;
+import com.google.firebase.crash.FirebaseCrash;
 import com.pokegoapi.api.PokemonGo;
 import com.pokegoapi.api.map.MapObjects;
 import com.pokegoapi.auth.GoogleLogin;
@@ -21,14 +24,20 @@ import java.util.Collection;
 import java.util.HashSet;
 
 public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
+    private static final String TAG = PokemonNetwork.class.getSimpleName();
+
     private static final long LOCATION_UPDATE_POLL = 1000 * 10; // 10 seconds
     private static final long RESET_TIMEOUT = 1000 * 60 * 5; // 5 minutes
+    private static final long THEAD_SLEEP = 1000; // 1 second;
 
-    private static final String TAG = "PKGOMAP.PokemonNetwork";
+    private static final int S2CELL_LEVEL = 15;
+
+    private static final String PREFS_KEY_TOKEN = "token";
+    private static final String PREFS_KEY_TOKEN_SERVICE = "token_service";
 
     private static PokemonNetwork sInstance;
 
-    public enum LoginMethod {
+    public enum LoginService {
         GOOGLE,
         PTC;
 
@@ -73,9 +82,9 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
 
             while (!isInterrupted()) {
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(THEAD_SLEEP);
                 } catch (InterruptedException e) {
-                    Log.e(TAG, "Interrupted.", e);
+                    //Log.e(TAG, "Interrupted.", e);
                     return;
                 }
 
@@ -91,7 +100,7 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
                 if (time > locationTime) {
                     loc = mLocationFinder.getMyLocation();
                     if (loc == null) continue;
-                    S2CellId newLocCell = S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.getLatitude(), loc.getLongitude())).parent(15);
+                    S2CellId newLocCell = S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.getLatitude(), loc.getLongitude())).parent(S2CELL_LEVEL);
                     if (newLocCell != locCell) {
                         locCell = newLocCell;
                         cellQueue.push(locCell);
@@ -112,34 +121,34 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
 
                 MapObjects mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 1);
                 if (mapObjects == null) {
-                    Log.e(TAG, "null map objects");
+                    FirebaseCrash.report(new Exception("Null map objects"));
                     continue;
                 }
 
                 Collection<WildPokemonOuterClass.WildPokemon> wildPokemons = mapObjects.getWildPokemons();
                 if (wildPokemons == null) {
-                    Log.e(TAG, "null wild pokemons");
+                    FirebaseCrash.report(new Exception("Null wild pokemon"));
                     continue;
                 }
 
-                Log.e(TAG, "found " + wildPokemons.size() + " pokemon at " + latLng.toStringDegrees());
+                time = System.currentTimeMillis();
                 for (WildPokemonOuterClass.WildPokemon pokemon : wildPokemons) {
-                    mPokemonListener.onPokemonFound(pokemon.getSpawnpointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), pokemon.getTimeTillHiddenMs());
+                    mPokemonListener.onPokemonFound(pokemon.getSpawnpointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), time + pokemon.getTimeTillHiddenMs());
                 }
 
-                        /*Collection<WildPokemonOuterClass.WildPokemon> catchablePokemons = mapObjects.getNearbyPokemons()
-                        if (wildPokemons == null) {
-                            Log.e(TAG, "null wild pokemons");
-                            continue;
-                        }
+                /*Collection<MapPokemonOuterClass.MapPokemon> catchablePokemons = mapObjects.getCatchablePokemons();
+                if (catchablePokemons == null) {
+                    FirebaseCrash.report(new Exception("Null catchable pokemon"));
+                    continue;
+                }
 
-                        for (WildPokemonOuterClass.WildPokemon pokemon : wildPokemons) {
-                            mPokemonListener.onPokemonFound(pokemon.getSpawnpointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), pokemon.getTimeTillHiddenMs());
-                        }*/
+                for (MapPokemonOuterClass.MapPokemon pokemon : catchablePokemons) {
+                    mPokemonListener.onPokemonFound(pokemon.getSpawnpointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonIdValue(), pokemon.getExpirationTimestampMs());
+                }*/
 
                 // Find new neighbors
                 ArrayList<S2CellId> newCells = new ArrayList<>();
-                curCell.getAllNeighbors(15, newCells);
+                curCell.getAllNeighbors(S2CELL_LEVEL, newCells);
                 for (S2CellId cell : newCells) {
                     if (!visitedCells.contains(cell)) {
                         cellQueue.add(cell);
@@ -186,12 +195,12 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
     public boolean trySavedLogin() {
         SharedPreferences prefs = getPrefs();
 
-        String token = prefs.getString("token", null);
+        String token = prefs.getString(PREFS_KEY_TOKEN, null);
         if (token == null) {
             return false;
         }
 
-        String tokenMethod = prefs.getString("token_login_method", null);
+        String tokenMethod = prefs.getString(PREFS_KEY_TOKEN_SERVICE, null);
         if (tokenMethod == null) {
             /*prefs.edit().putString("token_login_method", null);
             prefs.edit().putString("token", null);*/
@@ -200,72 +209,46 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
 
         EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth;
         try {
-            LoginMethod loginMethod = LoginMethod.valueOf(tokenMethod);
-            auth = loginMethod.getLogin(mHttpClient).login(token);
+            LoginService loginService = LoginService.valueOf(tokenMethod);
+            auth = loginService.getLogin(mHttpClient).login(token);
         } catch (Exception e) {
             // shouldn't happen. need to refactor login to not throw
-            Log.e(TAG, "Login failed.", e);
+            FirebaseCrash.report(e);
             return false;
         }
 
         mGo = new PokemonGo(auth, mHttpClient);
         if (mGo.getPlayerProfile() == null) {
-            prefs.edit().remove("token").remove("token_login_method").apply();
+            prefs.edit().remove(PREFS_KEY_TOKEN).remove(PREFS_KEY_TOKEN_SERVICE).apply();
             return false;
         }
 
-        Log.e(TAG, "Logged in: " + mGo.getPlayerProfile().getUsername());
         return true;
     }
-
-
-    /*
-    public boolean relogin(final LoginCallback callback) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth;
-                try {
-                    String token = mContext.getSharedPreferences(TAG, Context.MODE_PRIVATE).getString("token", null);
-                    auth = new PTCLogin(mHttpClient).login(token);
-                } catch (LoginFailedException e) {
-                    Log.e(TAG, "Login failed.", e);
-                    callback.onError(e.getLocalizedMessage());
-                    return;
-                }
-
-                mGo = new PokemonGo(auth, mHttpClient);
-                Log.e(TAG, "Logged in: " + mGo.getPlayerProfile().getUsername());
-
-                callback.onSuccess();
-            }
-        }).start();
-    }*/
 
     public boolean loginPTC(String username, String password) {
         EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth;
         try {
             auth = new PTCLogin(mHttpClient).login(username, password);
         } catch (Exception e) {
-            Log.e(TAG, "Login failed.", e);
+            FirebaseCrash.report(e);
             return false;
         }
 
-        login(auth, LoginMethod.PTC);
+        login(auth, LoginService.PTC);
         return true;
     }
 
     public void loginGoogle(String token) {
-        login(new GoogleLogin(mHttpClient).login(token), LoginMethod.GOOGLE);
+        login(new GoogleLogin(mHttpClient).login(token), LoginService.GOOGLE);
     }
 
-    private void login(EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth, LoginMethod method) {
+    private void login(EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth, LoginService method) {
         mGo = new PokemonGo(auth, mHttpClient);
-        Log.e(TAG, "Logged in: " + mGo.getPlayerProfile().getUsername());
 
         SharedPreferences.Editor prefs = getPrefs().edit();
-        prefs.putString("token", auth.getToken().getContents());
-        prefs.putString("token_login_method", method.name());
+        prefs.putString(PREFS_KEY_TOKEN, auth.getToken().getContents());
+        prefs.putString(PREFS_KEY_TOKEN_SERVICE, method.name());
         prefs.apply();
 
         tryStartSearching();
@@ -275,8 +258,8 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
         mPokemonThread.interrupt();
 
         SharedPreferences.Editor prefs = getPrefs().edit();
-        prefs.putString("token", null);
-        prefs.putString("token_login_method", null);
+        prefs.putString(PREFS_KEY_TOKEN, null);
+        prefs.putString(PREFS_KEY_TOKEN_SERVICE, null);
         prefs.apply();
     }
 

@@ -7,7 +7,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
+import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.PriorityQueue;
 
 public class PokemonManager implements PokemonNetwork.PokemonListener {
-    private static final String TAG = "PKGOMAP.PokemonManager";
+    private static final String TAG = PokemonManager.class.getSimpleName();
 
     private static final Object sPokemonDataLock = new Object();
 
@@ -42,7 +42,6 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
     }
 
     private final Context mContext;
-    private final Handler mMainHandler;
 
     private final PokemonNetwork mPokemonNetwork;
     private final PokemonDatabase.PokemonDbHelper mPokemonDbHelper;
@@ -56,10 +55,8 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
 
     private PokemonManager(Context context) {
         mContext = context;
-        mMainHandler = new Handler(Looper.getMainLooper());
 
         mPokemonNetwork = PokemonNetwork.getInstance(context);
-        mPokemonNetwork.startSearching(this);
 
         mExpirationQueue = new PriorityQueue<>(100, new Comparator<Pokemon>() {
             @Override
@@ -88,7 +85,7 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
             json = new String(buffer, "UTF-8");
         } catch (IOException ex) {
             ex.printStackTrace();
-            Log.e(TAG, "unable to load pokemon data");
+            FirebaseCrash.report(ex);
         }
 
         Gson gson = new GsonBuilder().create();
@@ -137,6 +134,10 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
                 }
             }
         }).start();
+    }
+
+    public void startSearching() {
+        mPokemonNetwork.startSearching(this);
     }
 
     private void loadDbPokemon() {
@@ -199,7 +200,7 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
         Resources resources = mContext.getResources();
         final int resourceId = resources.getIdentifier(name, "drawable", mContext.getPackageName());
         if (resourceId == 0) {
-            Log.e(TAG, "failed resolution of pokemon: " + name);
+            FirebaseCrash.report(new Throwable("failed resolution of pokemon: " + name));
         }
         return resourceId;
     }
@@ -210,7 +211,7 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
 
     @Override
     public void onPokemonFound(String spawnId, double lat, double lng, int pokemonNumber, long timeTilHidden) {
-        addPokemon(true, spawnId, lat, lng, pokemonNumber, System.currentTimeMillis() + timeTilHidden);
+        addPokemon(true, spawnId, lat, lng, pokemonNumber, timeTilHidden);
     }
 
     private void addPokemon(boolean writeDb, String spawnId, double lat, double lng, int pokemonNumber, long expirationTime) {

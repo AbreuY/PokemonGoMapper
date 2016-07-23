@@ -12,7 +12,6 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -25,6 +24,7 @@ import android.widget.Toast;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.pokegoapi.auth.GoogleAuthTokenJson;
 import com.pokegoapi.auth.GoogleLogin;
@@ -42,7 +42,7 @@ import java.io.IOException;
  * A login screen that offers login via email/password.
  */
 public class LoginActivity extends AppCompatActivity implements GoogleApiClient.OnConnectionFailedListener {
-    private static final String TAG = "PKGOMAP.LoginActivity";
+    private static final String TAG = LoginActivity.class.getSimpleName();
     
     private static final int REQUEST_CODE_LOGIN_GOOGLE = 1000;
 
@@ -149,7 +149,7 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
                             Toast.makeText(LoginActivity.this, "Unable to log into Google", Toast.LENGTH_SHORT).show();
                         }
                     });
-                    Log.e(TAG, "failed to log into google", e);
+                    FirebaseCrash.report(e);
                 }
 
                 @Override

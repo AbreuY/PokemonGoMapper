@@ -12,11 +12,12 @@ import android.util.Log;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationServices;
+import com.google.firebase.crash.FirebaseCrash;
 
 import java.util.HashSet;
 
 public class GmsLocationFinder implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
-    private static final String TAG = "PKGOMAP.GmsLocationFinder";
+    private static final String TAG = GmsLocationFinder.class.getSimpleName();
 
     private static GmsLocationFinder sInstance;
 
@@ -90,7 +91,7 @@ public class GmsLocationFinder implements GoogleApiClient.ConnectionCallbacks, G
     public Location getMyLocation() {
         int permissionCheck = ContextCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION);
         if (permissionCheck == PackageManager.PERMISSION_DENIED) {
-            Log.e(TAG, "Location permission not granted.");
+            FirebaseCrash.report(new Throwable("Location permission not granted."));
             return null;
         }
 
