@@ -1,4 +1,4 @@
-package com.artemshvadskiy.pokemongomapper;
+package com.pokegomapco.pokemongomapper;
 
 import android.Manifest;
 import android.content.Context;

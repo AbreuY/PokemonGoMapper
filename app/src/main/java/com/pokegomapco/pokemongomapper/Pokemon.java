@@ -1,4 +1,4 @@
-package com.artemshvadskiy.pokemongomapper;
+package com.pokegomapco.pokemongomapper;
 
 public class Pokemon {
     // JSON fields

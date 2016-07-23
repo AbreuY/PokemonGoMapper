@@ -1,4 +1,4 @@
-package com.artemshvadskiy.pokemongomapper;
+package com.pokegomapco.pokemongomapper;
 
 import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
 import POGOProtos.Networking.EnvelopesOuterClass;

@@ -1,4 +1,4 @@
-package com.artemshvadskiy.pokemongomapper;
+package com.pokegomapco.pokemongomapper;
 
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
