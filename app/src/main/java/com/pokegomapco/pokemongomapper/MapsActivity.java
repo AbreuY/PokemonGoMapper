@@ -20,6 +20,9 @@ import android.view.ViewGroup;
 import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
+import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -74,7 +77,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (savedInstanceState != null) {
             mSavedCameraPosition = savedInstanceState.getParcelable(BUNDLE_KEY_CAMERA);
             mFilter = savedInstanceState.getBooleanArray(BUNDLE_KEY_FILTER);
-        } else {
+        }
+        if (mFilter == null) {
             mFilter = new boolean[mPokemonManager.getNumPokemon()];
             Arrays.fill(mFilter, true);
         }
@@ -87,6 +91,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         } else {
             connectToPokemon();
         }
+
+        MobileAds.initialize(getApplicationContext(), "ca-app-pub-8757602030251852~3749471126");
+        AdView mAdView = (AdView) findViewById(R.id.adView);
+        AdRequest adRequest = new AdRequest.Builder().addTestDevice("3BB53778AAAF2CE1AF6ADE3B706393DA").build();
+        mAdView.loadAd(adRequest);
     }
 
     @Override

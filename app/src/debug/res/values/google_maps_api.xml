@@ -7,7 +7,7 @@
     https://console.developers.google.com/flows/enableapi?apiid=maps_android_backend&keyType=CLIENT_SIDE_ANDROID&r=A8:C5:DA:1F:31:C0:89:5F:6B:26:DF:D0:D0:9C:DF:5B:4C:43:DF:95;com.pokegomapco.pokemongomapper
 
     You can also add your credentials to an existing key, using this line:
-    96:E2:FA:B7:CA:3E:5C:DF:E8:3C:9E:57:C9:2F:60:86:13:FA:34:50;pokegomapcokemongomapper
+    A8:C5:DA:1F:31:C0:89:5F:6B:26:DF:D0:D0:9C:DF:5B:4C:43:DF:95;pokegomapcokemongomapper
 
     Alternatively, follow the directions here:
     https://developers.google.com/maps/documentation/android/start#get-key

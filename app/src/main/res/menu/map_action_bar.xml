@@ -6,11 +6,12 @@
     <item
             android:id="@+id/action_filter"
             android:title="Filter"
-            app:showAsAction="withText"/>
+            android:titleCondensed="Filter"
+            app:showAsAction="always|withText"/>
 
     <!-- Settings, should always be in the overflow -->
     <item android:id="@+id/action_signout"
           android:title="Sign Out"
-          app:showAsAction="withText"/>
+          app:showAsAction="always|withText"/>
 
 </menu>
