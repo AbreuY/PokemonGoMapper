@@ -4,7 +4,7 @@
 
     To get one, follow this link, follow the directions and press "Create" at the end:
 
-    https://console.developers.google.com/flows/enableapi?apiid=maps_android_backend&keyType=CLIENT_SIDE_ANDROID&r=A8:C5:DA:1F:31:C0:89:5F:6B:26:DF:D0:D0:9C:DF:5B:4C:43:DF:95;com.artemshvadskiy.pokemongomapper
+    https://console.developers.google.com/flows/enableapi?apiid=maps_android_backend&keyType=CLIENT_SIDE_ANDROID&r=A8:C5:DA:1F:31:C0:89:5F:6B:26:DF:D0:D0:9C:DF:5B:4C:43:DF:95;com.pokegomapco.pokemongomapper
 
     You can also add your credentials to an existing key, using this line:
     96:E2:FA:B7:CA:3E:5C:DF:E8:3C:9E:57:C9:2F:60:86:13:FA:34:50;pokegomapcokemongomapper
@@ -15,5 +15,5 @@
     Once you have your key (it starts with "AIza"), replace the "google_maps_key"
     string in this file.
     -->
-    <string name="google_maps_key" translatable="false" templateMergeStrategy="preserve">AIzaSyC-tqHeyw5WZwZw652ky2RCfVtRffb5bn8</string>
+    <string name="google_maps_key" translatable="false" templateMergeStrategy="preserve">AIzaSyDB5fHN1zyfL9MOZrIkcFWwuxMUlEHc86M</string>
 </resources>

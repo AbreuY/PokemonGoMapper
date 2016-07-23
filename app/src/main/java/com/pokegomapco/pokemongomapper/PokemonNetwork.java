@@ -72,6 +72,13 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
             long locationTime = 0;
 
             while (!isInterrupted()) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Log.e(TAG, "Interrupted.", e);
+                    return;
+                }
+
                 // Reset the visited cells, so we update with new pokemon
                 long time = System.currentTimeMillis();
                 if (time > resetTime) {
@@ -83,19 +90,13 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
                 // Update center point if we've moved out of the original cell
                 if (time > locationTime) {
                     loc = mLocationFinder.getMyLocation();
+                    if (loc == null) continue;
                     S2CellId newLocCell = S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.getLatitude(), loc.getLongitude())).parent(15);
                     if (newLocCell != locCell) {
                         locCell = newLocCell;
                         cellQueue.push(locCell);
                     }
                     locationTime = time + LOCATION_UPDATE_POLL;
-                }
-
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    Log.e(TAG, "Interrupted.", e);
-                    return;
                 }
 
                 // Process current cell

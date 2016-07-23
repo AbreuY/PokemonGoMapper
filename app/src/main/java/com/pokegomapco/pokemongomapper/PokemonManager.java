@@ -122,7 +122,7 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
                             if (pokemon.expirationTime < System.currentTimeMillis()) {
                                 mExpirationQueue.remove();
                                 mPokemonBySpawnId.remove(pokemon.spawnId);
-                                mPokemonListener.onPokemonExpired(pokemon);
+                                if (mPokemonListener != null) mPokemonListener.onPokemonExpired(pokemon);
                             } else {
                                 break;
                             }
