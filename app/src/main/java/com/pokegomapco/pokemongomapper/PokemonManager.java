@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -190,8 +191,10 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
         mPokemonListener = listener;
     }
 
-    public Collection<Pokemon> getPokemon() {
-        return mPokemonBySpawnId.values();
+    public Pokemon[] getPokemon() {
+        Pokemon[] pokemon = new Pokemon[mPokemonBySpawnId.size()];
+        mPokemonBySpawnId.values().toArray(pokemon);
+        return pokemon;
     }
 
     public int getIconResByNumber(int pokemonNumber) {
@@ -219,6 +222,7 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
             if (mPokemonBySpawnId.containsKey(spawnId)) return;
 
             Pokemon pokemon = new Pokemon(mPokemonData[pokemonNumber]);
+            pokemon.spawnId = spawnId;
             pokemon.expirationTime = expirationTime;
             pokemon.latitude = lat;
             pokemon.longitude = lng;

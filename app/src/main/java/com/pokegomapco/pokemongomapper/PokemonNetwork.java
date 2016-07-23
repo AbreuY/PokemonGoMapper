@@ -14,6 +14,7 @@ import com.pokegoapi.api.map.MapObjects;
 import com.pokegoapi.auth.GoogleLogin;
 import com.pokegoapi.auth.Login;
 import com.pokegoapi.auth.PTCLogin;
+import com.pokegoapi.google.common.geometry.S2;
 import com.pokegoapi.google.common.geometry.S2CellId;
 import com.pokegoapi.google.common.geometry.S2LatLng;
 import okhttp3.OkHttpClient;
@@ -75,6 +76,7 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
         public void run() {
             HashSet<S2CellId> visitedCells = new HashSet<>();
             ArrayDeque<S2CellId> cellQueue = new ArrayDeque<>();
+            HashSet<S2CellId> lowPriorityCells = new HashSet<>();
             Location loc;
             S2CellId locCell = null;
             long resetTime = 0;
@@ -85,7 +87,7 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
                     Thread.sleep(THEAD_SLEEP);
                 } catch (InterruptedException e) {
                     //Log.e(TAG, "Interrupted.", e);
-                    return;
+                    break;
                 }
 
                 // Reset the visited cells, so we update with new pokemon
@@ -93,6 +95,7 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
                 if (time > resetTime) {
                     cellQueue.clear();
                     visitedCells.clear();
+                    lowPriorityCells.clear();
                     resetTime = time + RESET_TIMEOUT;
                 }
 
@@ -101,21 +104,26 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
                     loc = mLocationFinder.getMyLocation();
                     if (loc == null) continue;
                     S2CellId newLocCell = S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.getLatitude(), loc.getLongitude())).parent(S2CELL_LEVEL);
-                    if (newLocCell != locCell) {
+                    if (cellQueue.isEmpty() || locCell == null || newLocCell.pos() != locCell.pos()) {
                         locCell = newLocCell;
+                        lowPriorityCells.addAll(cellQueue);
+                        cellQueue.clear();
                         cellQueue.push(locCell);
                     }
                     locationTime = time + LOCATION_UPDATE_POLL;
                 }
 
-                // Process current cell
-                S2CellId curCell = cellQueue.peek();
+
 
                 // Shouldn't happen, so lets just reset
-                if (curCell == null) {
+                if (cellQueue.isEmpty()) {
+                    FirebaseCrash.report(new Throwable("Empty cell queue before search."));
                     locationTime = resetTime = 0;
                     continue;
                 }
+
+                // Process current cell
+                S2CellId curCell = cellQueue.pop();
 
                 S2LatLng latLng = curCell.toLatLng();
 
@@ -155,9 +163,21 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
                     }
                 }
 
-                cellQueue.pop();
+                // If we have no unvisited neighbors, lets look at the low priority queue
+                if (cellQueue.isEmpty()) {
+                    FirebaseCrash.report(new Throwable("Empty cell queue after search."));
+                    lowPriorityCells.removeAll(visitedCells);
+
+                    // If we've visited all of those, then lets just reset and start over
+                    if (lowPriorityCells.isEmpty()) {
+                        FirebaseCrash.report(new Throwable("Empty low priority map."));
+                        resetTime = 0;
+                    }
+                }
+
                 visitedCells.add(curCell);
             }
+            mPokemonThread = null;
         }
     }
 
@@ -180,7 +200,7 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
 
     public void startSearching(PokemonListener listener) {
         mPokemonListener = listener;
-        if (mLocationFinder.isReady()) {
+        if (mLocationFinder.isReady() && mPokemonThread == null) {
             mPokemonThread = new PokemonThread();
             mPokemonThread.start();
         }
@@ -255,7 +275,9 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
     }
 
     public void logOut() {
-        mPokemonThread.interrupt();
+        if (mPokemonThread != null) {
+            mPokemonThread.interrupt();
+        }
 
         SharedPreferences.Editor prefs = getPrefs().edit();
         prefs.putString(PREFS_KEY_TOKEN, null);

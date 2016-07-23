@@ -1,6 +1,7 @@
 package com.pokegomapco.pokemongomapper;
 
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
@@ -13,6 +14,7 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -33,7 +35,11 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.crash.FirebaseCrash;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import org.json.JSONArray;
 
+import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,6 +50,8 @@ import java.util.List;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, PokemonManager.PokemonListener,
         GmsLocationFinder.ConnectionListener {
+    private static final String TAG = MapsActivity.class.getSimpleName();
+
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 1337;
 
     private static final String ADS_ID = "ca-app-pub-8757602030251852~3749471126";
@@ -51,13 +59,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final String BUNDLE_KEY_CAMERA = "camera";
     private static final String BUNDLE_KEY_FILTER = "filter";
 
+    private static final Object sDataLock = new Object();
+
     private PokemonManager mPokemonManager;
     private GoogleMap mMap;
     private GmsLocationFinder mLocationFinder;
     private CameraPosition mSavedCameraPosition;
 
-    private HashMap<Integer, List<Pokemon>> mPokemonByNumber;
     private HashMap<Pokemon, Marker> mPokemonMarkers;
+
+    private Runnable mLoadExistingRunnable;
 
     private boolean[] mFilter;
     private boolean[] mTempFilter;
@@ -74,7 +85,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         mPokemonManager = PokemonManager.getInstance(this);
 
-        mPokemonByNumber = new HashMap<>();
         mPokemonMarkers = new HashMap<>();
 
         if (savedInstanceState != null) {
@@ -82,8 +92,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             mFilter = savedInstanceState.getBooleanArray(BUNDLE_KEY_FILTER);
         }
         if (mFilter == null) {
-            mFilter = new boolean[mPokemonManager.getNumPokemon()];
-            Arrays.fill(mFilter, true);
+            String json = getPrefs().getString(BUNDLE_KEY_FILTER, null);
+            if (json != null) {
+                Type type = new TypeToken<boolean[]>() {
+                }.getType();
+                mFilter = new Gson().fromJson(json, type);
+            } else {
+                mFilter = new boolean[mPokemonManager.getNumPokemon()];
+                Arrays.fill(mFilter, true);
+            }
         }
 
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
@@ -175,12 +192,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void applyFilter() {
-        for (Integer pokemonNumber : mPokemonByNumber.keySet()) {
-            List<Pokemon> pokemons = mPokemonByNumber.get(pokemonNumber);
-            for (Pokemon pokemon : pokemons) {
-                mPokemonMarkers.get(pokemon).setVisible(mFilter[pokemonNumber - 1]);
+        synchronized (sDataLock) {
+            for (Pokemon pokemon : mPokemonMarkers.keySet()) {
+                mPokemonMarkers.get(pokemon).setVisible(mFilter[pokemon.Number - 1]);
             }
         }
+
+        getPrefs().edit().putString(BUNDLE_KEY_FILTER, new Gson().toJson(mFilter)).apply();
     }
 
     @Override
@@ -272,17 +290,23 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             mMap.moveCamera(CameraUpdateFactory.newCameraPosition(mSavedCameraPosition));
         }
 
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                Collection<Pokemon> pokemons = mPokemonManager.getPokemon();
-                for (Pokemon pokemon : pokemons) {
-                    addPokemonToMap(pokemon);
-                }
+        if (mLoadExistingRunnable == null) {
+            mLoadExistingRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (sDataLock) {
+                        Pokemon[] pokemons = mPokemonManager.getPokemon();
+                        for (Pokemon pokemon : pokemons) {
+                            addPokemonToMap(pokemon);
+                        }
 
-                mPokemonManager.setPokemonListener(MapsActivity.this);
-            }
-        });
+                        mPokemonManager.setPokemonListener(MapsActivity.this);
+                        mLoadExistingRunnable = null;
+                    }
+                }
+            };
+            runOnUiThread(mLoadExistingRunnable);
+        }
     }
 
     @Override
@@ -290,6 +314,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                if (mPokemonMarkers.containsKey(pokemon)) {
+                    FirebaseCrash.report(new Throwable("Duplicate pokemon: " + pokemon));
+                    return;
+                }
+
                 addPokemonToMap(pokemon);
             }
         });
@@ -300,33 +329,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                mPokemonByNumber.remove(pokemon.Number);
-                mPokemonMarkers.remove(pokemon).remove();
+                synchronized (sDataLock) {
+                    mPokemonMarkers.remove(pokemon).remove();
+                }
             }
         });
     }
 
     private void addPokemonToMap(Pokemon pokemon) {
-        LatLng loc = new LatLng(pokemon.latitude, pokemon.longitude);
+        synchronized (sDataLock) {
+            LatLng loc = new LatLng(pokemon.latitude, pokemon.longitude);
 
-        SimpleDateFormat formatter = new SimpleDateFormat("hh:mm:ssa");
-        String dateString = formatter.format(new Date(pokemon.expirationTime));
-        String title = pokemon.Name + " disappears at: " + dateString;
+            SimpleDateFormat formatter = new SimpleDateFormat("hh:mm:ss a");
+            String dateString = formatter.format(new Date(pokemon.expirationTime));
+            String title = pokemon.Name + " disappears at " + dateString;
 
-        Marker marker = mMap.addMarker(new MarkerOptions().position(loc).title(title)
-                .icon(BitmapDescriptorFactory.fromResource(mPokemonManager.getIconResByNumber(pokemon.Number))));
+            Marker marker = mMap.addMarker(new MarkerOptions().position(loc).title(title)
+                    .icon(BitmapDescriptorFactory.fromResource(mPokemonManager.getIconResByNumber(pokemon.Number))));
 
-        mPokemonMarkers.put(pokemon, marker);
+            mPokemonMarkers.put(pokemon, marker);
 
-        List<Pokemon> samePokemon = mPokemonByNumber.get(pokemon.Number);
-        if (samePokemon == null) {
-            samePokemon = new ArrayList<>();
-            mPokemonByNumber.put(pokemon.Number, samePokemon);
-        }
-        samePokemon.add(pokemon);
-
-        if (!mFilter[pokemon.Number - 1]) {
-            marker.setVisible(false);
+            if (!mFilter[pokemon.Number - 1]) {
+                marker.setVisible(false);
+            }
         }
     }
 
@@ -373,5 +398,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         public int getItemCount() {
             return mPokemonManager.getNumPokemon();
         }
+    }
+
+    private SharedPreferences getPrefs() {
+        return getSharedPreferences(TAG, MODE_PRIVATE);
     }
 }
