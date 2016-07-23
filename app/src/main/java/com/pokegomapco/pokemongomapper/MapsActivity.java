@@ -97,7 +97,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         MobileAds.initialize(getApplicationContext(), ADS_ID);
         AdView mAdView = (AdView) findViewById(R.id.adView);
-        AdRequest adRequest = new AdRequest.Builder().addTestDevice("3BB53778AAAF2CE1AF6ADE3B706393DA").build();
+        AdRequest adRequest = new AdRequest.Builder()/*.addTestDevice("3BB53778AAAF2CE1AF6ADE3B706393DA")*/.build();
         mAdView.loadAd(adRequest);
     }
 
@@ -353,7 +353,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         @Override
         public void onBindViewHolder(final PokemonViewHolder holder, int position) {
-            holder.itemView.setBackgroundColor(Color.argb(50 - (50 / ((position % 2) + 1)), 0, 0, 0));
+            holder.itemView.setBackgroundColor(Color.argb(20 - (20 / ((position % 2) + 1)), 0, 0, 0));
 
             holder.mCheckBox.setChecked(mTempFilter[position]);
             holder.mIcon.setImageResource(mPokemonManager.getIconResByNumber(position + 1));

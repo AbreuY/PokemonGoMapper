@@ -27,7 +27,7 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
     private static final String TAG = PokemonNetwork.class.getSimpleName();
 
     private static final long LOCATION_UPDATE_POLL = 1000 * 10; // 10 seconds
-    private static final long RESET_TIMEOUT = 1000 * 60 * 5; // 5 minutes
+    private static final long RESET_TIMEOUT = 1000 * 60 * 10; // 5 minutes
     private static final long THEAD_SLEEP = 1000; // 1 second;
 
     private static final int S2CELL_LEVEL = 15;
