@@ -7,12 +7,10 @@ import android.content.SharedPreferences;
 import android.location.Location;
 import android.util.Log;
 import com.pokegoapi.api.PokemonGo;
-import com.pokegoapi.api.map.Map;
 import com.pokegoapi.api.map.MapObjects;
 import com.pokegoapi.auth.GoogleLogin;
 import com.pokegoapi.auth.Login;
 import com.pokegoapi.auth.PTCLogin;
-import com.pokegoapi.exceptions.LoginFailedException;
 import com.pokegoapi.google.common.geometry.S2CellId;
 import com.pokegoapi.google.common.geometry.S2LatLng;
 import okhttp3.OkHttpClient;
@@ -26,7 +24,7 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
     private static final long LOCATION_UPDATE_POLL = 1000 * 10; // 10 seconds
     private static final long RESET_TIMEOUT = 1000 * 60 * 5; // 5 minutes
 
-    private static final String TAG = "PokemonGoMapper";
+    private static final String TAG = "PKGOMAP.PokemonNetwork";
 
     private static PokemonNetwork sInstance;
 
@@ -47,14 +45,14 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
 
     public synchronized static PokemonNetwork getInstance(Context context) {
         if (sInstance == null) {
-            sInstance = new PokemonNetwork(context);
+            sInstance = new PokemonNetwork(context.getApplicationContext());
         }
 
         return sInstance;
     }
 
     public interface PokemonListener {
-        void onPokemonFound(String spawnId, double lat, double lng, int pokemonId, long timeTilHidden);
+        void onPokemonFound(String spawnId, double lat, double lng, int pokemonNumber, long timeTilHidden);
     }
 
     private final Context mContext;
@@ -64,84 +62,92 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
     private Thread mPokemonThread;
 
     private class PokemonThread extends Thread {
+        @Override
+        public void run() {
+            HashSet<S2CellId> visitedCells = new HashSet<>();
+            ArrayDeque<S2CellId> cellQueue = new ArrayDeque<>();
+            Location loc;
+            S2CellId locCell = null;
+            long resetTime = 0;
+            long locationTime = 0;
 
-        public PokemonThread() {
-            super(new Runnable() {
-                @Override
-                public void run() {
-                    HashSet<S2CellId> visitedCells = new HashSet<>();
-                    ArrayDeque<S2CellId> cellQueue = new ArrayDeque<>();
-                    Location loc;
-                    S2CellId locCell = null;
-                    long resetTime = 0;
-                    long locationTime = 0;
+            while (!isInterrupted()) {
+                // Reset the visited cells, so we update with new pokemon
+                long time = System.currentTimeMillis();
+                if (time > resetTime) {
+                    cellQueue.clear();
+                    visitedCells.clear();
+                    resetTime = time + RESET_TIMEOUT;
+                }
 
-                    while(true) {
-                        if (Thread.currentThread().isInterrupted()) {
-                            return;
-                        }
+                // Update center point if we've moved out of the original cell
+                if (time > locationTime) {
+                    loc = mLocationFinder.getMyLocation();
+                    S2CellId newLocCell = S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.getLatitude(), loc.getLongitude())).parent(15);
+                    if (newLocCell != locCell) {
+                        locCell = newLocCell;
+                        cellQueue.push(locCell);
+                    }
+                    locationTime = time + LOCATION_UPDATE_POLL;
+                }
 
-                        // Reset the visited cells, so we update with new pokemon
-                        long time = System.currentTimeMillis();
-                        if (time > resetTime) {
-                            cellQueue.clear();
-                            visitedCells.clear();
-                            resetTime = time + RESET_TIMEOUT;
-                        }
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Log.e(TAG, "Interrupted.", e);
+                    return;
+                }
 
-                        // Update center point if we've moved out of the original cell
-                        if (time > locationTime) {
-                            loc = mLocationFinder.getMyLocation();
-                            S2CellId newLocCell = S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.getLatitude(), loc.getLongitude())).parent(15);
-                            if (newLocCell != locCell) {
-                                locCell = newLocCell;
-                            }
-                            cellQueue.clear();
-                            cellQueue.push(locCell);
-                            locationTime = time + LOCATION_UPDATE_POLL;
-                        }
+                // Process current cell
+                S2CellId curCell = cellQueue.peek();
 
-                        try {
-                            Thread.sleep(2000);
-                        } catch (InterruptedException e) {
-                            Log.e(TAG, "Interrupted.", e);
-                        }
+                // Shouldn't happen, so lets just reset
+                if (curCell == null) {
+                    locationTime = resetTime = 0;
+                    continue;
+                }
 
-                        // Process current cell
-                        S2CellId curCell = cellQueue.peek();
+                S2LatLng latLng = curCell.toLatLng();
 
-                        // Shouldn't happen, so lets just reset
-                        if (curCell == null) {
-                            locationTime = resetTime = 0;
+                MapObjects mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 1);
+                if (mapObjects == null) {
+                    Log.e(TAG, "null map objects");
+                    continue;
+                }
+
+                Collection<WildPokemonOuterClass.WildPokemon> wildPokemons = mapObjects.getWildPokemons();
+                if (wildPokemons == null) {
+                    Log.e(TAG, "null wild pokemons");
+                    continue;
+                }
+
+                Log.e(TAG, "found " + wildPokemons.size() + " pokemon at " + latLng.toStringDegrees());
+                for (WildPokemonOuterClass.WildPokemon pokemon : wildPokemons) {
+                    mPokemonListener.onPokemonFound(pokemon.getSpawnpointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), pokemon.getTimeTillHiddenMs());
+                }
+
+                        /*Collection<WildPokemonOuterClass.WildPokemon> catchablePokemons = mapObjects.getNearbyPokemons()
+                        if (wildPokemons == null) {
+                            Log.e(TAG, "null wild pokemons");
                             continue;
                         }
 
-                        S2LatLng latLng = curCell.toLatLng();
-
-                        MapObjects mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 1);
-                        if (mapObjects == null) continue;
-
-                        Collection<WildPokemonOuterClass.WildPokemon> wildPokemons = mapObjects.getWildPokemons();
-                        if (wildPokemons == null) continue;
-
                         for (WildPokemonOuterClass.WildPokemon pokemon : wildPokemons) {
                             mPokemonListener.onPokemonFound(pokemon.getSpawnpointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), pokemon.getTimeTillHiddenMs());
-                        }
+                        }*/
 
-                        // Find new neighbors
-                        ArrayList<S2CellId> newCells = new ArrayList<>();
-                        curCell.getAllNeighbors(15, newCells);
-                        for (S2CellId cell : newCells) {
-                            if (!visitedCells.contains(cell)) {
-                                cellQueue.add(cell);
-                            }
-                        }
-
-                        cellQueue.pop();
-                        visitedCells.add(curCell);
+                // Find new neighbors
+                ArrayList<S2CellId> newCells = new ArrayList<>();
+                curCell.getAllNeighbors(15, newCells);
+                for (S2CellId cell : newCells) {
+                    if (!visitedCells.contains(cell)) {
+                        cellQueue.add(cell);
                     }
                 }
-            });
+
+                cellQueue.pop();
+                visitedCells.add(curCell);
+            }
         }
     }
 
@@ -158,7 +164,7 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
             mLocationFinder.addListener(this);
             mLocationFinder.init();
         } else {
-            onConnected();
+            onGmsLocationConnected();
         }
     }
 
@@ -167,6 +173,12 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
         if (mLocationFinder.isReady()) {
             mPokemonThread = new PokemonThread();
             mPokemonThread.start();
+        }
+    }
+
+    private void tryStartSearching() {
+        if (mPokemonListener != null) {
+            startSearching(mPokemonListener);
         }
     }
 
@@ -254,9 +266,11 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
         prefs.putString("token", auth.getToken().getContents());
         prefs.putString("token_login_method", method.name());
         prefs.apply();
+
+        tryStartSearching();
     }
 
-    public void signOut() {
+    public void logOut() {
         mPokemonThread.interrupt();
 
         SharedPreferences.Editor prefs = getPrefs().edit();
@@ -266,14 +280,14 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
     }
 
     @Override
-    public void onConnected() {
+    public void onGmsLocationConnected() {
         if (mGo != null && mPokemonListener != null) {
             mPokemonThread.start();
         }
     }
 
     @Override
-    public void onDisconnected() {
+    public void onGmsLocationDisconnected() {
 
     }
 

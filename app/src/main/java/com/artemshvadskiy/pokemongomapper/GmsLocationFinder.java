@@ -15,24 +15,21 @@ import com.google.android.gms.location.LocationServices;
 
 import java.util.HashSet;
 
-/**
- * Created by Artem on 7/19/2016.
- */
 public class GmsLocationFinder implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
-    private static final String TAG = GmsLocationFinder.class.getSimpleName();
+    private static final String TAG = "PKGOMAP.GmsLocationFinder";
 
     private static GmsLocationFinder sInstance;
 
     public synchronized static GmsLocationFinder getInstance(Context context) {
         if (sInstance == null) {
-            sInstance = new GmsLocationFinder(context);
+            sInstance = new GmsLocationFinder(context.getApplicationContext());
         }
         return sInstance;
     }
 
     public interface ConnectionListener {
-        void onConnected();
-        void onDisconnected();
+        void onGmsLocationConnected();
+        void onGmsLocationDisconnected();
     }
 
     private final Context mContext;
@@ -57,7 +54,7 @@ public class GmsLocationFinder implements GoogleApiClient.ConnectionCallbacks, G
     public void onConnected(@Nullable Bundle bundle) {
         mReady = true;
         for (ConnectionListener listener : mListeners) {
-            listener.onConnected();
+            listener.onGmsLocationConnected();
         }
     }
 
@@ -65,7 +62,7 @@ public class GmsLocationFinder implements GoogleApiClient.ConnectionCallbacks, G
     public void onConnectionSuspended(int i) {
         mReady = false;
         for (ConnectionListener listener : mListeners) {
-            listener.onDisconnected();
+            listener.onGmsLocationDisconnected();
         }
     }
 

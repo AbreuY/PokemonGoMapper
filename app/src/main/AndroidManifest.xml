@@ -38,6 +38,10 @@
                 android:label="@string/title_activity_maps">
         </activity>
         <activity
+                android:name=".GoogleLoginActivity"
+                android:label="@string/title_activity_maps">
+        </activity>
+        <activity
                 android:name=".LoginActivity"
                 android:label="@string/title_activity_login">
             <intent-filter android:label="@string/app_name">

@@ -1,10 +1,5 @@
 package com.artemshvadskiy.pokemongomapper;
 
-import com.google.android.gms.maps.model.Marker;
-
-/**
- * Created by Artem on 7/21/2016.
- */
 public class Pokemon {
     // JSON fields
     int Number;
@@ -13,7 +8,8 @@ public class Pokemon {
     // App fields
     String spawnId;
     long expirationTime;
-    Marker marker;
+    double latitude;
+    double longitude;
 
     public Pokemon(Pokemon other) {
         Number = other.Number;

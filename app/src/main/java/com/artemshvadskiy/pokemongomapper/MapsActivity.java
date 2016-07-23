@@ -2,7 +2,7 @@ package com.artemshvadskiy.pokemongomapper;
 
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
-import android.content.res.Resources;
+import android.graphics.Color;
 import android.location.Location;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
@@ -13,13 +13,11 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -27,38 +25,33 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.PriorityQueue;
 
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, PokemonNetwork.PokemonListener, GmsLocationFinder.ConnectionListener {
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, PokemonManager.PokemonListener,
+        GmsLocationFinder.ConnectionListener {
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 1337;
 
-    private static final Object sLock = new Object();
+    private static final String BUNDLE_KEY_CAMERA = "camera";
+    private static final String BUNDLE_KEY_FILTER = "filter";
 
-    private PokemonNetwork mPokemonNetwork;
+    private PokemonManager mPokemonManager;
     private GoogleMap mMap;
     private GmsLocationFinder mLocationFinder;
+    private CameraPosition mSavedCameraPosition;
 
-    private PriorityQueue<Pokemon> mExpirationQueue;
-    private HashMap<String, Pokemon> mPokemonBySpawnId;
     private HashMap<Integer, List<Pokemon>> mPokemonByNumber;
-    private Pokemon[] mPokemonData;
+    private HashMap<Pokemon, Marker> mPokemonMarkers;
 
     private boolean[] mFilter;
     private boolean[] mTempFilter;
@@ -66,118 +59,34 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_maps);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-        mExpirationQueue = new PriorityQueue<>(100, new Comparator<Pokemon>() {
-            @Override
-            public int compare(Pokemon lhs, Pokemon rhs) {
-                if (lhs.expirationTime == rhs.expirationTime) {
-                    return 0;
-                } else if (lhs.expirationTime < rhs.expirationTime) {
-                    return -1;
-                } else {
-                    return 1;
-                }
-            }
-        });
-        mPokemonBySpawnId = new HashMap<>();
-
-        String json = null;
-        try {
-            InputStream is = getResources().openRawResource(R.raw.pokemon);
-            int size = is.available();
-            byte[] buffer = new byte[size];
-            is.read(buffer);
-            is.close();
-            json = new String(buffer, "UTF-8");
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            Log.e("pokemon", "unable to load pokemon data");
-            return;
-        }
-
-        Gson gson = new GsonBuilder().create();
-
-        Type listType = new TypeToken<ArrayList<Pokemon>>(){}.getType();
-        List<Pokemon> pokemons = gson.fromJson(json, listType);
-        mPokemonData = new Pokemon[pokemons.size() + 1];
-        for (Pokemon pokemon : pokemons) {
-            mPokemonData[pokemon.Number] = pokemon;
-        }
-
-        mFilter = new boolean[pokemons.size() + 1];
-        Arrays.fill(mFilter, true);
+        mPokemonManager = PokemonManager.getInstance(this);
 
         mPokemonByNumber = new HashMap<>();
+        mPokemonMarkers = new HashMap<>();
+
+        if (savedInstanceState != null) {
+            mSavedCameraPosition = savedInstanceState.getParcelable(BUNDLE_KEY_CAMERA);
+            mFilter = savedInstanceState.getBooleanArray(BUNDLE_KEY_FILTER);
+        } else {
+            mFilter = new boolean[mPokemonManager.getNumPokemon()];
+            Arrays.fill(mFilter, true);
+        }
 
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
-
-            /*// Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this, android.Manifest.permission.ACCESS_FINE_LOCATION)) {
-
-                // Show an expanation to the user *asynchronously* -- don't block
-                // this thread waiting for the user's response! After the user
-                // sees the explanation, try again to request the permission.
-
-            } else {*/
-
-                // No explanation needed, we can request the permission.
-
-                ActivityCompat.requestPermissions(this,
-                        new String[]{ android.Manifest.permission.ACCESS_FINE_LOCATION },
-                        PERMISSIONS_REQUEST_FINE_LOCATION);
-
-                // MY_PERMISSIONS_REQUEST_READ_CONTACTS is an
-                // app-defined int constant. The callback method gets the
-                // result of the request.
-            //}
+            ActivityCompat.requestPermissions(this,
+                    new String[]{ android.Manifest.permission.ACCESS_FINE_LOCATION },
+                    PERMISSIONS_REQUEST_FINE_LOCATION);
         } else {
             connectToPokemon();
         }
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    if (Thread.currentThread().isInterrupted()) {
-                        return;
-                    }
-
-                    synchronized (sLock) {
-                        while (!mExpirationQueue.isEmpty()) {
-                            final Pokemon pokemon = mExpirationQueue.peek();
-                            if (pokemon.expirationTime < System.currentTimeMillis()) {
-                                mExpirationQueue.remove();
-
-                                mPokemonByNumber.get(pokemon.Number).remove(pokemon);
-                                mPokemonBySpawnId.get(pokemon.spawnId);
-
-                                runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        pokemon.marker.remove();
-                                    }
-                                });
-                            } else {
-                                break;
-                            }
-                        }
-                    }
-
-
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        return;
-                    }
-                }
-            }
-        }).start();
     }
 
     @Override
@@ -241,7 +150,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 return true;
 
             case R.id.action_signout:
-                PokemonNetwork.getInstance(this).signOut();
+                PokemonNetwork.getInstance(this).logOut();
                 finish();
                 return true;
 
@@ -257,7 +166,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         for (Integer pokemonNumber : mPokemonByNumber.keySet()) {
             List<Pokemon> pokemons = mPokemonByNumber.get(pokemonNumber);
             for (Pokemon pokemon : pokemons) {
-                pokemon.marker.setVisible(mFilter[pokemonNumber]);
+                mPokemonMarkers.get(pokemon).setVisible(mFilter[pokemonNumber - 1]);
             }
         }
     }
@@ -289,15 +198,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void connectToPokemon() {
-        mPokemonNetwork = PokemonNetwork.getInstance(this);
-        mPokemonNetwork.startSearching(this);
-
         mLocationFinder = GmsLocationFinder.getInstance(this);
         if (!mLocationFinder.isReady()) {
             mLocationFinder.addListener(this);
             mLocationFinder.init();
         } else {
-            onConnected();
+            onGmsLocationConnected();
         }
     }
 
@@ -315,84 +221,100 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMap = googleMap;
 
         if (mLocationFinder != null && mLocationFinder.isReady()) {
-            zoomToSelf();
+            startPollingForPokemon();
         }
     }
 
     @Override
-    public void onPokemonFound(final String spawnId, final double lat, final double lng, final int pokemonId, final long timeTilHidden) {
-        if (mMap == null) return;
+    public void onGmsLocationConnected() {
+        if (mMap != null) {
+            startPollingForPokemon();
+        }
+    }
+
+    @Override
+    public void onGmsLocationDisconnected() {
+
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        outState.putBooleanArray(BUNDLE_KEY_FILTER, mFilter);
+        outState.putParcelable(BUNDLE_KEY_FILTER, mMap.getCameraPosition());
+
+        super.onSaveInstanceState(outState);
+    }
+
+    @SuppressWarnings("MissingPermission")
+    private void startPollingForPokemon() {
+        mMap.setMyLocationEnabled(true);
+
+        if (mSavedCameraPosition == null) {
+            Location location = mLocationFinder.getMyLocation();
+            LatLng loc = new LatLng(location.getLatitude(), location.getLongitude());
+        /*mMap.addMarker(new MarkerOptions().position(loc).title("You")
+                .icon(BitmapDescriptorFactory.fromResource(R.mipmap.ic_location)));*/
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(loc, 17));
+        } else {
+            mMap.moveCamera(CameraUpdateFactory.newCameraPosition(mSavedCameraPosition));
+        }
 
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                synchronized (sLock) {
-                    if (mPokemonBySpawnId.containsKey(spawnId)) return;
-
-                    LatLng loc = new LatLng(lat, lng);
-
-                    Pokemon pokemon = new Pokemon(mPokemonData[pokemonId]);
-                    pokemon.expirationTime = System.currentTimeMillis() + timeTilHidden;
-
-                    SimpleDateFormat formatter = new SimpleDateFormat("hh:mm:ssa");
-                    String dateString = formatter.format(new Date(pokemon.expirationTime));
-                    String title = pokemon.Name + " disappears at: " + dateString;
-
-                    Marker marker = mMap.addMarker(new MarkerOptions().position(loc).title(title)
-                            .icon(BitmapDescriptorFactory.fromResource(getIconRes(pokemonId))));
-
-                    pokemon.marker = marker;
-                    mPokemonBySpawnId.put(spawnId, pokemon);
-
-                    List<Pokemon> samePokemon = mPokemonByNumber.get(pokemonId);
-                    if (samePokemon == null) {
-                        samePokemon = new ArrayList<>();
-                        mPokemonByNumber.put(pokemonId, samePokemon);
-                    }
-                    samePokemon.add(pokemon);
-
-                    mExpirationQueue.add(pokemon);
-
-                    if (!mFilter[pokemonId]) {
-                        marker.setVisible(false);
-                    }
-                    //mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(loc, 18));
+                Collection<Pokemon> pokemons = mPokemonManager.getPokemon();
+                for (Pokemon pokemon : pokemons) {
+                    addPokemonToMap(pokemon);
                 }
+
+                mPokemonManager.setPokemonListener(MapsActivity.this);
             }
         });
     }
 
-    private int getIconRes(int pokemonId) {
-        String name = mPokemonData[pokemonId].getResourceName();
-
-        Resources resources = getResources();
-        final int resourceId = resources.getIdentifier(name, "drawable", getPackageName());
-        if (resourceId == 0) {
-            Log.e("artem", "failed resolution of pokemon: " + name);
-        }
-        return resourceId;
+    @Override
+    public void onPokemonFound(final Pokemon pokemon) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                addPokemonToMap(pokemon);
+            }
+        });
     }
 
     @Override
-    public void onConnected() {
-        if (mMap != null) {
-            zoomToSelf();
+    public void onPokemonExpired(final Pokemon pokemon) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mPokemonByNumber.remove(pokemon.Number);
+                mPokemonMarkers.remove(pokemon).remove();
+            }
+        });
+    }
+
+    private void addPokemonToMap(Pokemon pokemon) {
+        LatLng loc = new LatLng(pokemon.latitude, pokemon.longitude);
+
+        SimpleDateFormat formatter = new SimpleDateFormat("hh:mm:ssa");
+        String dateString = formatter.format(new Date(pokemon.expirationTime));
+        String title = pokemon.Name + " disappears at: " + dateString;
+
+        Marker marker = mMap.addMarker(new MarkerOptions().position(loc).title(title)
+                .icon(BitmapDescriptorFactory.fromResource(mPokemonManager.getIconResByNumber(pokemon.Number))));
+
+        mPokemonMarkers.put(pokemon, marker);
+
+        List<Pokemon> samePokemon = mPokemonByNumber.get(pokemon.Number);
+        if (samePokemon == null) {
+            samePokemon = new ArrayList<>();
+            mPokemonByNumber.put(pokemon.Number, samePokemon);
         }
-    }
+        samePokemon.add(pokemon);
 
-    @Override
-    public void onDisconnected() {
-
-    }
-
-    private void zoomToSelf() {
-        mMap.setMyLocationEnabled(true);
-
-        Location location = mLocationFinder.getMyLocation();
-        LatLng loc = new LatLng(location.getLatitude(), location.getLongitude());
-        /*mMap.addMarker(new MarkerOptions().position(loc).title("You")
-                .icon(BitmapDescriptorFactory.fromResource(R.mipmap.ic_location)));*/
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(loc, 17));
+        if (!mFilter[pokemon.Number - 1]) {
+            marker.setVisible(false);
+        }
     }
 
     private class PokemonViewHolder extends RecyclerView.ViewHolder {
@@ -418,22 +340,25 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         @Override
         public void onBindViewHolder(final PokemonViewHolder holder, int position) {
-            position++;
-            holder.mCheckBox.setChecked(mTempFilter[position]);
-            holder.mIcon.setImageResource(getIconRes(position));
-            holder.mName.setText(mPokemonData[position].Name);
+            holder.itemView.setBackgroundColor(Color.argb(50 - (50 / ((position % 2) + 1)), 0, 0, 0));
 
-            holder.mCheckBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            holder.mCheckBox.setChecked(mTempFilter[position]);
+            holder.mIcon.setImageResource(mPokemonManager.getIconResByNumber(position + 1));
+            holder.mName.setText(mPokemonManager.getNameByNumber(position + 1));
+
+            holder.itemView.setOnClickListener(new View.OnClickListener() {
                 @Override
-                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                    mTempFilter[holder.getAdapterPosition() + 1] = isChecked;
+                public void onClick(View v) {
+                    boolean checked = holder.mCheckBox.isChecked();
+                    holder.mCheckBox.setChecked(!checked);
+                    mTempFilter[holder.getAdapterPosition()] = !checked;
                 }
             });
         }
 
         @Override
         public int getItemCount() {
-            return mPokemonData.length - 1;
+            return mPokemonManager.getNumPokemon();
         }
     }
 }

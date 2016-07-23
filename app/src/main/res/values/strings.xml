@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">PokemonGoMapper</string>
     <string name="title_activity_maps">Map</string>
+    <string name="title_activity_google_login">Google Login</string>
     <string name="title_activity_login">Sign in</string>
 
     <!-- Strings related to login -->
