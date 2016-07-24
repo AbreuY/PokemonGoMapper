@@ -107,7 +107,14 @@ public class PokemonNetwork {
                 }
 
                 // Process current cell
-                S2CellId curCell = cellQueue.pop();
+                S2CellId curCell = cellQueue.peek();
+                if (curCell == null) {
+                    // What? How?
+                    currentCellTime = 0;
+                    continue;
+                } else {
+                    cellQueue.pop();
+                }
                 S2LatLng latLng = curCell.toLatLng();
                 //mLocationFinder.drawDebugMarker(new LatLng(latLng.latDegrees(), latLng.lngDegrees()));
 
