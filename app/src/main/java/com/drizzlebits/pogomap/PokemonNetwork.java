@@ -1,20 +1,17 @@
-package com.pokegomapco.pokemongomapper;
+package com.drizzlebits.pogomap;
 
-import POGOProtos.Map.Pokemon.MapPokemonOuterClass;
-import POGOProtos.Map.Pokemon.NearbyPokemonOuterClass;
 import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
 import POGOProtos.Networking.EnvelopesOuterClass;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.location.Location;
-import android.util.Log;
+import com.google.android.gms.maps.model.LatLng;
 import com.google.firebase.crash.FirebaseCrash;
 import com.pokegoapi.api.PokemonGo;
 import com.pokegoapi.api.map.MapObjects;
 import com.pokegoapi.auth.GoogleLogin;
 import com.pokegoapi.auth.Login;
 import com.pokegoapi.auth.PTCLogin;
-import com.pokegoapi.google.common.geometry.S2;
 import com.pokegoapi.google.common.geometry.S2CellId;
 import com.pokegoapi.google.common.geometry.S2LatLng;
 import okhttp3.OkHttpClient;
@@ -24,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 
-public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
+public class PokemonNetwork {
     private static final String TAG = PokemonNetwork.class.getSimpleName();
 
     private static final long LOCATION_UPDATE_POLL = 1000 * 10; // 10 seconds
@@ -67,7 +64,6 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
 
     private final Context mContext;
     private final OkHttpClient mHttpClient;
-    private final GmsLocationFinder mLocationFinder;
 
     private Thread mPokemonThread;
 
@@ -77,7 +73,7 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
             HashSet<S2CellId> visitedCells = new HashSet<>();
             ArrayDeque<S2CellId> cellQueue = new ArrayDeque<>();
             HashSet<S2CellId> lowPriorityCells = new HashSet<>();
-            Location loc;
+            LatLng loc;
             S2CellId locCell = null;
             long resetTime = 0;
             long locationTime = 0;
@@ -101,9 +97,9 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
 
                 // Update center point if we've moved out of the original cell
                 if (time > locationTime) {
-                    loc = mLocationFinder.getMyLocation();
+                    loc = mLocationFinder.getLocation();
                     if (loc == null) continue;
-                    S2CellId newLocCell = S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.getLatitude(), loc.getLongitude())).parent(S2CELL_LEVEL);
+                    S2CellId newLocCell = S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.latitude, loc.longitude)).parent(S2CELL_LEVEL);
                     if (cellQueue.isEmpty() || locCell == null || newLocCell.pos() != locCell.pos()) {
                         locCell = newLocCell;
                         lowPriorityCells.addAll(cellQueue);
@@ -183,19 +179,20 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
 
     private PokemonGo mGo;
     private PokemonListener mPokemonListener;
+    private PokemonManager.LocationFinder mLocationFinder;
 
     private PokemonNetwork(Context context) {
         mContext = context;
 
         mHttpClient = new OkHttpClient();
 
-        mLocationFinder = GmsLocationFinder.getInstance(mContext);
-        if (!mLocationFinder.isReady()) {
-            mLocationFinder.addListener(this);
-            mLocationFinder.init();
-        } else {
-            onGmsLocationConnected();
+        if (mGo != null && mPokemonListener != null) {
+            mPokemonThread.start();
         }
+    }
+
+    public void setLocationFinder(PokemonManager.LocationFinder finder) {
+        mLocationFinder = finder;
     }
 
     public void startSearching(PokemonListener listener) {
@@ -283,18 +280,6 @@ public class PokemonNetwork implements GmsLocationFinder.ConnectionListener {
         prefs.putString(PREFS_KEY_TOKEN, null);
         prefs.putString(PREFS_KEY_TOKEN_SERVICE, null);
         prefs.apply();
-    }
-
-    @Override
-    public void onGmsLocationConnected() {
-        if (mGo != null && mPokemonListener != null) {
-            mPokemonThread.start();
-        }
-    }
-
-    @Override
-    public void onGmsLocationDisconnected() {
-
     }
 
     private SharedPreferences getPrefs() {

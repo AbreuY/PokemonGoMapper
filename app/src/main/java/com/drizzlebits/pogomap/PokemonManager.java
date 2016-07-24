@@ -1,12 +1,12 @@
-package com.pokegomapco.pokemongomapper;
+package com.drizzlebits.pogomap;
 
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.res.Resources;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.os.Handler;
-import android.os.Looper;
+import android.location.Location;
+import com.google.android.gms.maps.model.LatLng;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -16,8 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +29,11 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
     public interface PokemonListener {
         void onPokemonFound(Pokemon pokemon);
         void onPokemonExpired(Pokemon pokemon);
+    }
+
+    public interface LocationFinder {
+        LatLng getLocation();
+        boolean isReady();
     }
 
     private static PokemonManager sInstance;
@@ -135,6 +138,10 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
                 }
             }
         }).start();
+    }
+
+    public void setLocationFinder(LocationFinder finder) {
+        mPokemonNetwork.setLocationFinder(finder);
     }
 
     public void startSearching() {

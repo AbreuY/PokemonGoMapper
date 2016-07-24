@@ -1,4 +1,4 @@
-package com.pokegomapco.pokemongomapper;
+package com.drizzlebits.pogomap;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -64,6 +64,9 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
+
+        getSupportActionBar().setIcon(R.mipmap.ic_launcher);
+
         // Set up the login form.
         mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
 

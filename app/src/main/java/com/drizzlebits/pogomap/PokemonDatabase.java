@@ -1,4 +1,4 @@
-package com.pokegomapco.pokemongomapper;
+package com.drizzlebits.pogomap;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;

@@ -49,6 +49,50 @@
           "status": 2
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:438765651721:android:ca4534a72462d5d8",
+        "android_client_info": {
+          "package_name": "com.drizzlebits.pogomap"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "438765651721-4qs0es5ip77lqkj4bl5su2kc2g4b1b74.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.drizzlebits.pogomap",
+            "certificate_hash": "A8C5DA1F31C0895F6B26DFD0D09CDF5B4C43DF95"
+          }
+        },
+        {
+          "client_id": "438765651721-38mh4bqlucsure6d9tm76mffbkbske63.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0WE_Q6V8MBoTV9kc5xGOvhXdh7X50Pd0"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "438765651721-38mh4bqlucsure6d9tm76mffbkbske63.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
     }
   ],
   "configuration_version": "1"

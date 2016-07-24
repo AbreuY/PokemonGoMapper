@@ -9,7 +9,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:id="@+id/map"
-            tools:context="com.pokegomapco.pokemongomapper.MapsActivity"
+            tools:context="com.drizzlebits.pogomap.MapsActivity"
             android:name="com.google.android.gms.maps.SupportMapFragment"/>
 
     <com.google.android.gms.ads.AdView
@@ -19,5 +19,15 @@
             android:layout_gravity="bottom|center_horizontal"
             ads:adSize="SMART_BANNER"
             ads:adUnitId="@string/banner_ad_unit_id"/>
+
+    <ToggleButton
+            android:id="@+id/location_toggle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:alpha="0.5"
+            android:layout_margin="7dp"
+            android:textOn="Search map"
+            android:textOff="Search near me"/>
+
 
 </FrameLayout>

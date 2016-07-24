@@ -8,15 +8,7 @@
               android:paddingLeft="@dimen/activity_horizontal_margin"
               android:paddingRight="@dimen/activity_horizontal_margin"
               android:paddingTop="@dimen/activity_vertical_margin"
-              tools:context="com.pokegomapco.pokemongomapper.LoginActivity">
-
-    <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:drawableStart="@mipmap/ic_launcher"
-            style="?android:textAppearanceLarge"
-            android:text="PokeMap for Pokemon Go"/>
+              tools:context="com.drizzlebits.pogomap.LoginActivity">
 
     <!-- Login progress -->
     <ProgressBar
@@ -31,8 +23,13 @@
             android:id="@+id/login_form"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginTop="20dp"
             android:orientation="vertical">
+
+        <com.google.android.gms.common.SignInButton
+                android:id="@+id/google_sign_in_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="30dp"/>
 
         <TextView
                 android:layout_width="match_parent"
@@ -80,12 +77,6 @@
                 android:layout_height="wrap_content"
                 android:text="@string/action_sign_in"
                 android:textStyle="bold"/>
-
-        <com.google.android.gms.common.SignInButton
-                android:id="@+id/google_sign_in_button"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"/>
 
         <TextView
                 android:layout_width="match_parent"

@@ -1,10 +1,11 @@
-package com.pokegomapco.pokemongomapper;
+package com.drizzlebits.pogomap;
 
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
+import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.os.Bundle;
@@ -14,14 +15,15 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.ToggleButton;
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.AdView;
 import com.google.android.gms.ads.MobileAds;
@@ -37,24 +39,20 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import org.json.JSONArray;
 
 import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, PokemonManager.PokemonListener,
-        GmsLocationFinder.ConnectionListener {
+        GmsLocationFinder.ConnectionListener, PokemonManager.LocationFinder {
     private static final String TAG = MapsActivity.class.getSimpleName();
 
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 1337;
 
-    private static final String ADS_ID = "ca-app-pub-8757602030251852~3749471126";
+    private static final String ADS_ID = "ca-app-pub-8757602030251852~5570954726";
 
     private static final String BUNDLE_KEY_CAMERA = "camera";
     private static final String BUNDLE_KEY_FILTER = "filter";
@@ -63,6 +61,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private PokemonManager mPokemonManager;
     private GoogleMap mMap;
+    private ToggleButton mLocationToggle;
     private GmsLocationFinder mLocationFinder;
     private CameraPosition mSavedCameraPosition;
 
@@ -72,6 +71,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private boolean[] mFilter;
     private boolean[] mTempFilter;
+
+    private Handler mMainHandler;
+    private Runnable mUpdateLocationRunnable;
+    private LatLng mMapLocation;
+    private boolean mMapLocationOn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,7 +87,31 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
+        mMainHandler = new Handler(getMainLooper());
+        mUpdateLocationRunnable = new Runnable() {
+            @Override
+            public void run() {
+                mMapLocation = mMap.getCameraPosition().target;
+                mMainHandler.postDelayed(this, 1000);
+            }
+        };
+
+        mLocationToggle = (ToggleButton) findViewById(R.id.location_toggle);
+        mLocationToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                mMapLocationOn = isChecked;
+
+                if (isChecked) {
+                    mMainHandler.post(mUpdateLocationRunnable);
+                } else {
+                    mMainHandler.removeCallbacks(mUpdateLocationRunnable);
+                }
+            }
+        });
+
         mPokemonManager = PokemonManager.getInstance(this);
+        mPokemonManager.setLocationFinder(this);
 
         mPokemonMarkers = new HashMap<>();
 
@@ -353,6 +381,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 marker.setVisible(false);
             }
         }
+    }
+
+    @Override
+    public LatLng getLocation() {
+        if (mMapLocationOn) {
+            return mMapLocation;
+        } else {
+            Location loc = mLocationFinder.getMyLocation();
+            return new LatLng(loc.getLatitude(), loc.getLongitude());
+        }
+    }
+
+    @Override
+    public boolean isReady() {
+        return mLocationFinder.isReady();
     }
 
     private class PokemonViewHolder extends RecyclerView.ViewHolder {

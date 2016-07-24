@@ -1,4 +1,4 @@
-package com.pokegomapco.pokemongomapper;
+package com.drizzlebits.pogomap;
 
 import org.junit.Test;
 

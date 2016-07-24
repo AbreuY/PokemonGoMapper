@@ -4,10 +4,10 @@
 
     To get one, follow this link, follow the directions and press "Create" at the end:
 
-    https://console.developers.google.com/flows/enableapi?apiid=maps_android_backend&keyType=CLIENT_SIDE_ANDROID&r=A8:C5:DA:1F:31:C0:89:5F:6B:26:DF:D0:D0:9C:DF:5B:4C:43:DF:95;com.pokegomapco.pokemongomapper
+    https://console.developers.google.com/flows/enableapi?apiid=maps_android_backend&keyType=CLIENT_SIDE_ANDROID&r=A8:C5:DA:1F:31:C0:89:5F:6B:26:DF:D0:D0:9C:DF:5B:4C:43:DF:95;com.drizzlebits.pogomap
 
     You can also add your credentials to an existing key, using this line:
-    A8:C5:DA:1F:31:C0:89:5F:6B:26:DF:D0:D0:9C:DF:5B:4C:43:DF:95;pokegomapcokemongomapper
+    A8:C5:DA:1F:31:C0:89:5F:6B:26:DF:D0:D0:9C:DF:5B:4C:43:DF:95;com.drizzlebits.pogomap
 
     Alternatively, follow the directions here:
     https://developers.google.com/maps/documentation/android/start#get-key

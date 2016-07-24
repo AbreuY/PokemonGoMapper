@@ -1,4 +1,4 @@
-package com.pokegomapco.pokemongomapper;
+package com.drizzlebits.pogomap;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;

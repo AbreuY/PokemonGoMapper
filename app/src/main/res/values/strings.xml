@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">PokeMap</string>
-    <string name="title_activity_maps">Pokemon Map</string>
+    <string name="title_activity_maps">Map</string>
     <string name="title_activity_google_login">Google Login</string>
     <string name="title_activity_login">Login</string>
 
@@ -19,5 +19,5 @@
 
     <string name="disclaimer">Disclaimer: PokeMap for Pokemon Go is not associated, affiliated, endorsed, sponsored or approved by Niantic, Nintendo, or Pokemon Company. By accepting these terms, you agree that we cannot be held responsible for any consequences that result from the use of this application.</string>
 
-    <string name="banner_ad_unit_id">ca-app-pub-8757602030251852/5226204321</string>
+    <string name="banner_ad_unit_id">ca-app-pub-8757602030251852/7047687921</string>
 </resources>

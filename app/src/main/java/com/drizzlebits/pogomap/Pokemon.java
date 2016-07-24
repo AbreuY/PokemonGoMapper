@@ -1,4 +1,4 @@
-package com.pokegomapco.pokemongomapper;
+package com.drizzlebits.pogomap;
 
 public class Pokemon {
     // JSON fields
