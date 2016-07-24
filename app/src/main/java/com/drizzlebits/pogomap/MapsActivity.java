@@ -320,7 +320,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private boolean checkZoomFiltered() {
-        float zoomFactor = Math.min(100, mNumVisiblePokemon) / mSavedCameraPosition.zoom * 2f;
+        float zoomFactor = Math.min(100, mNumVisiblePokemon) / mSavedCameraPosition.zoom * 1.9f;
         mZoomFilter = mSavedCameraPosition.zoom < zoomFactor;
         return mZoomFilter;
     }
@@ -419,7 +419,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             mPokemonMarkers.put(pokemon, marker);
 
-            if (!mFilter[pokemon.Number - 1]) {
+            if (mZoomFilter || !mFilter[pokemon.Number - 1]) {
                 marker.setVisible(false);
             } else {
                 mNumVisiblePokemon++;
