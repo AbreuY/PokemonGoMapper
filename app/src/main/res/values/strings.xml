@@ -22,4 +22,13 @@
     <string name="disclaimer">Disclaimer: PokeMap for Pokemon Go is not associated, affiliated, endorsed, sponsored or approved by Niantic, Nintendo, or Pokemon Company.</string>
 
     <string name="banner_ad_unit_id">ca-app-pub-8757602030251852/7047687921</string>
+
+    <string name="change_log">
+        Version 1.1 - 7/23/16\n\n\n
+        Search algorithm is more efficient.\n\n
+        Search speed is much faster.\n\n
+        You can now switch between searching your location and searching where the map is looking.
+            To switch, press the button at the top left corner of the map.\n\n
+        The map will stop showing Pokemon if you are zoomed too far out, to prevent the device from slowing down.\n\n
+    </string>
 </resources>

@@ -3,14 +3,20 @@ package com.drizzlebits.pogomap;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.support.annotation.NonNull;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 
 import android.os.AsyncTask;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.text.Html;
+import android.text.Spannable;
 import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.view.View;
@@ -43,6 +49,8 @@ import java.io.IOException;
  */
 public class LoginActivity extends AppCompatActivity implements GoogleApiClient.OnConnectionFailedListener {
     private static final String TAG = LoginActivity.class.getSimpleName();
+
+    private static final String PREFS_KEY_VERSION = "version";
     
     private static final int REQUEST_CODE_LOGIN_GOOGLE = 1000;
 
@@ -64,8 +72,6 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
-
-        getSupportActionBar().setIcon(R.mipmap.ic_launcher);
 
         // Set up the login form.
         mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
@@ -105,8 +111,14 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
             }
         });
 
-        showProgress(true);
-        new Thread(new Runnable() {
+        int versionCode = 0;
+        try {
+            versionCode = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+        } catch (PackageManager.NameNotFoundException e) {
+            // How?
+        }
+
+        final Thread autoLoginThread = new Thread(new Runnable() {
             @Override
             public void run() {
                 mPokemonNetwork = PokemonNetwork.getInstance(getApplicationContext());
@@ -120,7 +132,27 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
                     }
                 });
             }
-        }).start();
+        });
+
+        SharedPreferences prefs = getSharedPreferences(TAG, MODE_PRIVATE);
+        if (prefs.getInt(PREFS_KEY_VERSION, 0) != versionCode) {
+            new AlertDialog.Builder(this)
+                    .setMessage(Spannable.Factory.getInstance().newSpannable(getString(R.string.change_log)))
+                    .setTitle("Change Log")
+                    .setPositiveButton("Close", null)
+                    .setOnDismissListener(new DialogInterface.OnDismissListener() {
+                        @Override
+                        public void onDismiss(DialogInterface dialog) {
+                            showProgress(true);
+                            autoLoginThread.start();
+                        }
+                    })
+                    .show();
+        } else {
+            showProgress(true);
+            autoLoginThread.start();
+        }
+        prefs.edit().putInt(PREFS_KEY_VERSION, versionCode).apply();
     }
 
     @Override
