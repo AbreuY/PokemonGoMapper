@@ -101,10 +101,9 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
         if (pokemons == null) {
             mPokemonData = new Pokemon[0];
         } else {
-            // 0 will always be blank, since pokemon numbers start at 1
-            mPokemonData = new Pokemon[pokemons.size() + 1];
+            mPokemonData = new Pokemon[pokemons.size()];
             for (Pokemon pokemon : pokemons) {
-                mPokemonData[pokemon.Number] = pokemon;
+                mPokemonData[pokemon.Number - 1] = pokemon;
             }
         }
 
@@ -192,21 +191,25 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
     }
 
     public int getNumPokemon() {
-        return mPokemonData.length - 1;
+        return mPokemonData.length;
     }
 
     public void setPokemonListener(PokemonListener listener) {
         mPokemonListener = listener;
     }
 
-    public Pokemon[] getPokemon() {
+    public Pokemon[] getMapPokemon() {
         Pokemon[] pokemon = new Pokemon[mPokemonBySpawnId.size()];
         mPokemonBySpawnId.values().toArray(pokemon);
         return pokemon;
     }
 
-    public int getIconResByNumber(int pokemonNumber) {
-        String name = mPokemonData[pokemonNumber].getResourceName();
+    public Pokemon[] getPossiblePokemon() {
+        return mPokemonData;
+    }
+
+    public int getIconRes(int index) {
+        String name = mPokemonData[index].getResourceName();
 
         Resources resources = mContext.getResources();
         final int resourceId = resources.getIdentifier(name, "drawable", mContext.getPackageName());
@@ -214,10 +217,6 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
             FirebaseCrash.report(new Throwable("failed resolution of pokemon: " + name));
         }
         return resourceId;
-    }
-
-    public String getNameByNumber(int pokemonNumber) {
-        return mPokemonData[pokemonNumber].Name;
     }
 
     @Override
@@ -229,7 +228,7 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
         synchronized (sPokemonDataLock) {
             if (mPokemonBySpawnId.containsKey(spawnId)) return;
 
-            Pokemon pokemon = new Pokemon(mPokemonData[pokemonNumber]);
+            Pokemon pokemon = new Pokemon(mPokemonData[pokemonNumber - 1]);
             pokemon.spawnId = spawnId;
             pokemon.expirationTime = expirationTime;
             pokemon.latitude = lat;

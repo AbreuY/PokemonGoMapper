@@ -4,7 +4,7 @@
               android:layout_width="match_parent"
               android:layout_height="match_parent">
 
-    <LinearLayout
+    <!--<LinearLayout
             android:orientation="horizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
@@ -27,13 +27,17 @@
                 android:text="Select None"
                 android:layout_weight="1"/>
 
-    </LinearLayout>
+    </LinearLayout>-->
+
+    <include
+            android:id="@+id/filter_header"
+            android:theme="@style/FilterDialogHeader"
+            layout="@layout/pokemon_filter_list_item"/>
 
     <android.support.v7.widget.RecyclerView
             android:id="@+id/filter_list"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:padding="20dp"
             android:layout_weight="1"/>
 
 </LinearLayout>

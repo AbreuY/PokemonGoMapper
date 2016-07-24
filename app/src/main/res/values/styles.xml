@@ -8,4 +8,7 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <style name="FilterDialogHeader" parent="ThemeOverlay.AppCompat.Dark">
+        <item name="colorAccent">@android:color/white</item>
+    </style>
 </resources>

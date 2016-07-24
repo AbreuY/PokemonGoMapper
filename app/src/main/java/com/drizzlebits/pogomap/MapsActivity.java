@@ -43,6 +43,7 @@ import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 
@@ -56,6 +57,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private static final String BUNDLE_KEY_CAMERA = "camera";
     private static final String BUNDLE_KEY_FILTER = "filter";
+    private static final String BUNDLE_KEY_FILTER_SORT_NUMBER = "filter_sort_number";
+    private static final String BUNDLE_KEY_FILTER_SORT_ASC = "filter_sort_asc";
 
     private static final Object sDataLock = new Object();
 
@@ -70,8 +73,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private Runnable mLoadExistingRunnable;
 
+    private boolean mAllFiltered;
+    private boolean mTempAllFiltered;
     private boolean[] mFilter;
     private boolean[] mTempFilter;
+    private boolean mFilterSortByNumber;  // otherwise sort by name
+    private boolean mFilterSortAsc;       // otherwise sort desc
     private boolean mZoomFilter;
     private int mNumVisiblePokemon;
 
@@ -124,6 +131,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (savedInstanceState != null) {
             mSavedCameraPosition = savedInstanceState.getParcelable(BUNDLE_KEY_CAMERA);
             mFilter = savedInstanceState.getBooleanArray(BUNDLE_KEY_FILTER);
+            mFilterSortByNumber = savedInstanceState.getBoolean(BUNDLE_KEY_FILTER_SORT_NUMBER);
+            mFilterSortAsc = savedInstanceState.getBoolean(BUNDLE_KEY_FILTER_SORT_ASC);
+
+            checkAllFiltered();
+        } else {
+            mFilterSortAsc = true;
+            mFilterSortByNumber = true;
         }
         if (mFilter == null) {
             String json = getPrefs().getString(BUNDLE_KEY_FILTER, null);
@@ -131,9 +145,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Type type = new TypeToken<boolean[]>() {
                 }.getType();
                 mFilter = new Gson().fromJson(json, type);
+
+                checkAllFiltered();
             } else {
                 mFilter = new boolean[mPokemonManager.getNumPokemon()];
                 Arrays.fill(mFilter, true);
+                mAllFiltered = true;
             }
         }
 
@@ -150,6 +167,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         AdView mAdView = (AdView) findViewById(R.id.adView);
         AdRequest adRequest = new AdRequest.Builder()/*.addTestDevice("3BB53778AAAF2CE1AF6ADE3B706393DA")*/.build();
         mAdView.loadAd(adRequest);
+    }
+
+    private void checkAllFiltered() {
+        mAllFiltered = true;
+        for (boolean f : mFilter) {
+            if (!f) {
+                mAllFiltered = false;
+                break;
+            }
+        }
     }
 
     @Override
@@ -171,22 +198,49 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 View layout = getLayoutInflater().inflate(R.layout.filter_dialog, null);
 
                 final RecyclerView list = (RecyclerView) layout.findViewById(R.id.filter_list);
+                final PokemonRecyclerAdapter adapter = new PokemonRecyclerAdapter();
                 list.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false));
-                list.setAdapter(new PokemonRecyclerAdapter());
+                list.setAdapter(adapter);
 
-                layout.findViewById(R.id.select_all).setOnClickListener(new View.OnClickListener() {
+
+                final PokemonViewHolder filterHeader = new PokemonViewHolder(layout.findViewById(R.id.filter_header));
+
+                filterHeader.itemView.setBackgroundResource(R.color.colorPrimary);
+                updateFilterDialogHeader(filterHeader);
+
+                filterHeader.mCheckBox.setChecked(mAllFiltered);
+                filterHeader.mCheckBox.setClickable(true);
+                filterHeader.mCheckBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                     @Override
-                    public void onClick(View v) {
-                        Arrays.fill(mTempFilter, true);
-                        list.getAdapter().notifyDataSetChanged();
+                    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                        mTempAllFiltered = isChecked;
+                        Arrays.fill(mTempFilter, isChecked);
+                        adapter.notifyDataSetChanged();
                     }
                 });
 
-                layout.findViewById(R.id.select_none).setOnClickListener(new View.OnClickListener() {
+                filterHeader.mNumber.setText("[###]");
+                filterHeader.mNumber.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        Arrays.fill(mTempFilter, false);
-                        list.getAdapter().notifyDataSetChanged();
+                        mFilterSortByNumber = true;
+                        mFilterSortAsc = !mFilterSortAsc;
+                        updateFilterDialogHeader(filterHeader);
+                        adapter.sort();
+                    }
+                });
+
+                filterHeader.mIcon.setImageResource(R.drawable.ic_pokemon_pikachu);
+                filterHeader.mIcon.setVisibility(View.INVISIBLE);
+
+                filterHeader.mName.setText("Name");
+                filterHeader.mName.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        mFilterSortByNumber = false;
+                        mFilterSortAsc = !mFilterSortAsc;
+                        updateFilterDialogHeader(filterHeader);
+                        adapter.sort();
                     }
                 });
 
@@ -195,7 +249,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 builder.setPositiveButton("Apply", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        mFilter = Arrays.copyOf(mTempFilter, mTempFilter.length);
                         applyFilter();
                     }
                 });
@@ -225,8 +278,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    private void updateFilterDialogHeader(PokemonViewHolder header) {
+        header.mNumber.setTextColor(mFilterSortByNumber ? Color.WHITE : Color.LTGRAY);
+        header.mName.setTextColor(!mFilterSortByNumber ? Color.WHITE : Color.LTGRAY);
+    }
+
     private void applyFilter() {
         synchronized (sDataLock) {
+            mAllFiltered = mTempAllFiltered;
+            mFilter = Arrays.copyOf(mTempFilter, mTempFilter.length);
+
             mNumVisiblePokemon = 0;
             for (Pokemon pokemon : mPokemonMarkers.keySet()) {
                 boolean visible = mFilter[pokemon.Number - 1];
@@ -341,6 +402,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onSaveInstanceState(Bundle outState) {
         outState.putBooleanArray(BUNDLE_KEY_FILTER, mFilter);
         outState.putParcelable(BUNDLE_KEY_CAMERA, mMap.getCameraPosition());
+        outState.putBoolean(BUNDLE_KEY_FILTER_SORT_NUMBER, mFilterSortByNumber);
+        outState.putBoolean(BUNDLE_KEY_FILTER_SORT_ASC, mFilterSortAsc);
 
         super.onSaveInstanceState(outState);
     }
@@ -357,8 +420,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         if (mSavedCameraPosition == null) {
             LatLng loc = new LatLng(location.getLatitude(), location.getLongitude());
-        /*mMap.addMarker(new MarkerOptions().position(loc).title("You")
-                .icon(BitmapDescriptorFactory.fromResource(R.mipmap.ic_location)));*/
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(loc, 17));
         } else {
             mMap.moveCamera(CameraUpdateFactory.newCameraPosition(mSavedCameraPosition));
@@ -372,7 +433,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 @Override
                 public void run() {
                     synchronized (sDataLock) {
-                        Pokemon[] pokemons = mPokemonManager.getPokemon();
+                        Pokemon[] pokemons = mPokemonManager.getMapPokemon();
                         for (Pokemon pokemon : pokemons) {
                             addPokemonToMap(pokemon);
                         }
@@ -407,7 +468,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void run() {
                 synchronized (sDataLock) {
-                    mPokemonMarkers.remove(pokemon).remove();
+                    Marker marker = mPokemonMarkers.remove(pokemon);
+                    if (marker != null) {
+                        marker.remove();
+                    }
                 }
             }
         });
@@ -422,7 +486,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             String title = pokemon.Name + " disappears at " + dateString;
 
             Marker marker = mMap.addMarker(new MarkerOptions().position(loc).title(title)
-                    .icon(BitmapDescriptorFactory.fromResource(mPokemonManager.getIconResByNumber(pokemon.Number))));
+                    .icon(BitmapDescriptorFactory.fromResource(mPokemonManager.getIconRes(pokemon.Number - 1))));
 
             mPokemonMarkers.put(pokemon, marker);
 
@@ -466,6 +530,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         private CheckBox mCheckBox;
         private ImageView mIcon;
         private TextView mName;
+        private TextView mNumber;
 
         public PokemonViewHolder(View v) {
             super(v);
@@ -473,10 +538,38 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             mCheckBox = (CheckBox) v.findViewById(R.id.enabled);
             mIcon = (ImageView) v.findViewById(R.id.icon);
             mName = (TextView) v.findViewById(R.id.name);
+            mNumber = (TextView) v.findViewById(R.id.number);
         }
     }
 
     private class PokemonRecyclerAdapter extends RecyclerView.Adapter<PokemonViewHolder> {
+        private Pokemon[] mData;
+
+        public PokemonRecyclerAdapter() {
+            mData = Arrays.copyOf(mPokemonManager.getPossiblePokemon(), mPokemonManager.getNumPokemon());
+            sort();
+        }
+
+        public void sort() {
+            Arrays.sort(mData, new Comparator<Pokemon>() {
+                @Override
+                public int compare(Pokemon p1, Pokemon p2) {
+                    if (mFilterSortByNumber) {
+                        int result = Integer.valueOf(p1.Number).compareTo(p2.Number);
+
+                        // Swap direction
+                        return result * (mFilterSortAsc ? 1 : -1);
+                    } else {
+                        int result = p1.Name.compareTo(p2.Name);
+
+                        // Swap direction
+                        return result * (mFilterSortAsc ? 1 : -1);
+                    }
+                }
+            });
+            notifyDataSetChanged();
+        }
+
         @Override
         public PokemonViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             View v = getLayoutInflater().inflate(R.layout.pokemon_filter_list_item, parent, false);
@@ -485,18 +578,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         @Override
         public void onBindViewHolder(final PokemonViewHolder holder, int position) {
-            holder.itemView.setBackgroundColor(Color.argb(20 - (20 / ((position % 2) + 1)), 0, 0, 0));
+            holder.itemView.setBackgroundColor(Color.argb(10 - (10 / ((position % 2) + 1)), 0, 0, 0));
 
-            holder.mCheckBox.setChecked(mTempFilter[position]);
-            holder.mIcon.setImageResource(mPokemonManager.getIconResByNumber(position + 1));
-            holder.mName.setText(mPokemonManager.getNameByNumber(position + 1));
+            final Pokemon pokemon = mData[position];
+            holder.mCheckBox.setChecked(mTempFilter[pokemon.Number - 1]);
+            holder.mIcon.setImageResource(mPokemonManager.getIconRes(pokemon.Number - 1));
+            holder.mName.setText(pokemon.Name);
+            holder.mNumber.setText(String.format("[%03d]", pokemon.Number));
 
             holder.itemView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     boolean checked = holder.mCheckBox.isChecked();
                     holder.mCheckBox.setChecked(!checked);
-                    mTempFilter[holder.getAdapterPosition()] = !checked;
+                    mTempFilter[pokemon.Number - 1] = !checked;
                 }
             });
         }
