@@ -62,6 +62,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private PokemonManager mPokemonManager;
     private GoogleMap mMap;
     private ToggleButton mLocationToggle;
+    private TextView mZoomFilterText;
     private GmsLocationFinder mLocationFinder;
     private CameraPosition mSavedCameraPosition;
 
@@ -71,6 +72,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private boolean[] mFilter;
     private boolean[] mTempFilter;
+    private boolean mZoomFilter;
+    private int mNumVisiblePokemon;
 
     private Handler mMainHandler;
     private Runnable mUpdateLocationRunnable;
@@ -96,6 +99,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mMainHandler.postDelayed(this, 1000);
             }
         };
+
+        mZoomFilterText = (TextView) findViewById(R.id.zoom_filter_text);
 
         mLocationToggle = (ToggleButton) findViewById(R.id.location_toggle);
         mLocationToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -222,9 +227,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void applyFilter() {
         synchronized (sDataLock) {
+            mNumVisiblePokemon = 0;
             for (Pokemon pokemon : mPokemonMarkers.keySet()) {
-                mPokemonMarkers.get(pokemon).setVisible(mFilter[pokemon.Number - 1]);
+                boolean visible = mFilter[pokemon.Number - 1];
+                mPokemonMarkers.get(pokemon).setVisible(visible);
+                if (visible) mNumVisiblePokemon++;
             }
+
+            if (checkZoomFiltered()) {
+                for (Pokemon pokemon : mPokemonMarkers.keySet()) {
+                    mPokemonMarkers.get(pokemon).setVisible(false);
+                }
+            }
+            mZoomFilterText.setVisibility(mZoomFilter ? View.VISIBLE : View.GONE);
         }
 
         getPrefs().edit().putString(BUNDLE_KEY_FILTER, new Gson().toJson(mFilter)).apply();
@@ -279,9 +294,35 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
+        mMap.setOnCameraChangeListener(new GoogleMap.OnCameraChangeListener() {
+            @Override
+            public void onCameraChange(CameraPosition cameraPosition) {
+                synchronized (sDataLock) {
+                    mSavedCameraPosition = cameraPosition;
+
+                    boolean curZoomFilter = mZoomFilter;
+                    checkZoomFiltered();
+                    if (curZoomFilter != mZoomFilter) return;
+
+                    for (Pokemon pokemon : mPokemonMarkers.keySet()) {
+                        mPokemonMarkers.get(pokemon).setVisible(!mZoomFilter && mFilter[pokemon.Number - 1]);
+                    }
+                    mZoomFilterText.setVisibility(mZoomFilter ? View.VISIBLE : View.GONE);
+                }
+            }
+        });
+
+        //mMap.setOnCameraChangeListener(new ClusterManager<PokemonClusterItem>(this, mMap));
+
         if (mLocationFinder != null && mLocationFinder.isReady()) {
             startPollingForPokemon();
         }
+    }
+
+    private boolean checkZoomFiltered() {
+        float zoomFactor = Math.min(100, mNumVisiblePokemon) / mSavedCameraPosition.zoom * 2f;
+        mZoomFilter = mSavedCameraPosition.zoom < zoomFactor;
+        return mZoomFilter;
     }
 
     @Override
@@ -380,6 +421,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             if (!mFilter[pokemon.Number - 1]) {
                 marker.setVisible(false);
+            } else {
+                mNumVisiblePokemon++;
             }
         }
     }

@@ -29,5 +29,17 @@
             android:textOn="Search map"
             android:textOff="Search near me"/>
 
+    <TextView
+            android:id="@+id/zoom_filter_text"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            style="?android:textAppearanceLarge"
+            android:clickable="false"
+            android:focusable="false"
+            android:gravity="center"
+            android:background="#33ffffff"
+            android:filterTouchesWhenObscured="false"
+            android:visibility="gone"
+            android:text="Zoom in or apply filter"/>
 
 </FrameLayout>

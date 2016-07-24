@@ -109,7 +109,7 @@ public class PokemonNetwork {
                 // Process current cell
                 S2CellId curCell = cellQueue.pop();
                 S2LatLng latLng = curCell.toLatLng();
-                mLocationFinder.drawDebugMarker(new LatLng(latLng.latDegrees(), latLng.lngDegrees()));
+                //mLocationFinder.drawDebugMarker(new LatLng(latLng.latDegrees(), latLng.lngDegrees()));
 
                 MapObjects mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 1);
                 if (mapObjects == null) {
