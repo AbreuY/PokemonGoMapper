@@ -347,11 +347,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @SuppressWarnings("MissingPermission")
     private void startPollingForPokemon() {
-        mPokemonManager.startSearching();
-        mMap.setMyLocationEnabled(true);
+        Location location = mLocationFinder.getMyLocation();
+        if (location == null) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{ android.Manifest.permission.ACCESS_FINE_LOCATION },
+                    PERMISSIONS_REQUEST_FINE_LOCATION);
+            return;
+        }
 
         if (mSavedCameraPosition == null) {
-            Location location = mLocationFinder.getMyLocation();
             LatLng loc = new LatLng(location.getLatitude(), location.getLongitude());
         /*mMap.addMarker(new MarkerOptions().position(loc).title("You")
                 .icon(BitmapDescriptorFactory.fromResource(R.mipmap.ic_location)));*/
@@ -359,6 +363,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         } else {
             mMap.moveCamera(CameraUpdateFactory.newCameraPosition(mSavedCameraPosition));
         }
+
+        mPokemonManager.startSearching();
+        mMap.setMyLocationEnabled(true);
 
         if (mLoadExistingRunnable == null) {
             mLoadExistingRunnable = new Runnable() {
@@ -433,7 +440,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             return mMapLocation;
         } else {
             Location loc = mLocationFinder.getMyLocation();
-            return new LatLng(loc.getLatitude(), loc.getLongitude());
+            return loc == null ? null : new LatLng(loc.getLatitude(), loc.getLongitude());
         }
     }
 

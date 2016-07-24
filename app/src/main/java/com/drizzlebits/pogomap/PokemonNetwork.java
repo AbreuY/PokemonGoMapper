@@ -181,9 +181,7 @@ public class PokemonNetwork {
 
         mHttpClient = new OkHttpClient();
 
-        if (mGo != null && mPokemonListener != null) {
-            mPokemonThread.start();
-        }
+        startSearching(mPokemonListener);
     }
 
     public void setLocationFinder(PokemonManager.LocationFinder finder) {
@@ -192,7 +190,7 @@ public class PokemonNetwork {
 
     public void startSearching(PokemonListener listener) {
         mPokemonListener = listener;
-        if (mLocationFinder.isReady() && mPokemonThread == null) {
+        if (mGo != null && mLocationFinder.isReady() && mPokemonThread == null) {
             mPokemonThread = new PokemonThread();
             mPokemonThread.start();
         }
