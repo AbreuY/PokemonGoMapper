@@ -401,7 +401,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         outState.putBooleanArray(BUNDLE_KEY_FILTER, mFilter);
-        outState.putParcelable(BUNDLE_KEY_CAMERA, mMap.getCameraPosition());
+        if (mMap != null) {
+            outState.putParcelable(BUNDLE_KEY_CAMERA, mMap.getCameraPosition());
+        }
         outState.putBoolean(BUNDLE_KEY_FILTER_SORT_NUMBER, mFilterSortByNumber);
         outState.putBoolean(BUNDLE_KEY_FILTER_SORT_ASC, mFilterSortAsc);
 
