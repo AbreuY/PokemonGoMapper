@@ -381,7 +381,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private boolean checkZoomFiltered() {
-        float zoomFactor = Math.min(100, mNumVisiblePokemon) / mSavedCameraPosition.zoom * 1.9f;
+        float zoomFactor = Math.min(100, mNumVisiblePokemon) / mSavedCameraPosition.zoom * 1.7f;
         mZoomFilter = mSavedCameraPosition.zoom < zoomFactor;
         return mZoomFilter;
     }
