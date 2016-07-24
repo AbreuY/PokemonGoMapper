@@ -4,7 +4,6 @@ import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
 import POGOProtos.Networking.EnvelopesOuterClass;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.location.Location;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.firebase.crash.FirebaseCrash;
 import com.pokegoapi.api.PokemonGo;
@@ -19,14 +18,16 @@ import okhttp3.OkHttpClient;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 
 public class PokemonNetwork {
     private static final String TAG = PokemonNetwork.class.getSimpleName();
 
-    private static final long LOCATION_UPDATE_POLL = 1000 * 10; // 10 seconds
-    private static final long RESET_TIMEOUT = 1000 * 60 * 10; // 5 minutes
-    private static final long THEAD_SLEEP = 1000; // 1 second;
+    private static final long LOCATION_UPDATE_POLL = 1000; // 1 second
+    private static final long RESET_TIMEOUT = 1000 * 60 * 5; // 10 minutes
+    private static final long RESET_THREDHOLD = 1000 * 60; // 1 minute
+    private static final long THEAD_SLEEP = 100; // 1/10 second;
 
     private static final int S2CELL_LEVEL = 15;
 
@@ -70,30 +71,21 @@ public class PokemonNetwork {
     private class PokemonThread extends Thread {
         @Override
         public void run() {
-            HashSet<S2CellId> visitedCells = new HashSet<>();
+            HashMap<Long, Long> cellTimes = new HashMap<>();
+            long currentCellTime = 0;
             ArrayDeque<S2CellId> cellQueue = new ArrayDeque<>();
-            HashSet<S2CellId> lowPriorityCells = new HashSet<>();
             LatLng loc;
             S2CellId locCell = null;
-            long resetTime = 0;
             long locationTime = 0;
 
             while (!isInterrupted()) {
                 try {
                     Thread.sleep(THEAD_SLEEP);
                 } catch (InterruptedException e) {
-                    //Log.e(TAG, "Interrupted.", e);
                     break;
                 }
 
-                // Reset the visited cells, so we update with new pokemon
                 long time = System.currentTimeMillis();
-                if (time > resetTime) {
-                    cellQueue.clear();
-                    visitedCells.clear();
-                    lowPriorityCells.clear();
-                    resetTime = time + RESET_TIMEOUT;
-                }
 
                 // Update center point if we've moved out of the original cell
                 if (time > locationTime) {
@@ -102,26 +94,22 @@ public class PokemonNetwork {
                     S2CellId newLocCell = S2CellId.fromLatLng(S2LatLng.fromDegrees(loc.latitude, loc.longitude)).parent(S2CELL_LEVEL);
                     if (cellQueue.isEmpty() || locCell == null || newLocCell.pos() != locCell.pos()) {
                         locCell = newLocCell;
-                        lowPriorityCells.addAll(cellQueue);
                         cellQueue.clear();
                         cellQueue.push(locCell);
                     }
                     locationTime = time + LOCATION_UPDATE_POLL;
                 }
 
-
-
-                // Shouldn't happen, so lets just reset
-                if (cellQueue.isEmpty()) {
-                    FirebaseCrash.report(new Throwable("Empty cell queue before search."));
-                    locationTime = resetTime = 0;
-                    continue;
+                // Re-check the cell we're in, in case the data is old and needs updating
+                if (time > currentCellTime + RESET_TIMEOUT) {
+                    cellQueue.clear();
+                    cellQueue.add(locCell);
                 }
 
                 // Process current cell
                 S2CellId curCell = cellQueue.pop();
-
                 S2LatLng latLng = curCell.toLatLng();
+                mLocationFinder.drawDebugMarker(new LatLng(latLng.latDegrees(), latLng.lngDegrees()));
 
                 MapObjects mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 1);
                 if (mapObjects == null) {
@@ -140,38 +128,45 @@ public class PokemonNetwork {
                     mPokemonListener.onPokemonFound(pokemon.getSpawnpointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), time + pokemon.getTimeTillHiddenMs());
                 }
 
-                /*Collection<MapPokemonOuterClass.MapPokemon> catchablePokemons = mapObjects.getCatchablePokemons();
-                if (catchablePokemons == null) {
-                    FirebaseCrash.report(new Exception("Null catchable pokemon"));
-                    continue;
-                }
-
-                for (MapPokemonOuterClass.MapPokemon pokemon : catchablePokemons) {
-                    mPokemonListener.onPokemonFound(pokemon.getSpawnpointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonIdValue(), pokemon.getExpirationTimestampMs());
-                }*/
-
                 // Find new neighbors
-                ArrayList<S2CellId> newCells = new ArrayList<>();
-                curCell.getAllNeighbors(S2CELL_LEVEL, newCells);
-                for (S2CellId cell : newCells) {
-                    if (!visitedCells.contains(cell)) {
+                ArrayList<S2CellId> currentNeighbors = new ArrayList<>();
+                curCell.getAllNeighbors(S2CELL_LEVEL, currentNeighbors);
+                for (S2CellId cell : currentNeighbors) {
+                    Long cellTime = cellTimes.get(cell.id());
+                    if (cellTime == null || time > cellTime + RESET_TIMEOUT - RESET_THREDHOLD) {
                         cellQueue.add(cell);
                     }
                 }
 
-                // If we have no unvisited neighbors, lets look at the low priority queue
-                if (cellQueue.isEmpty()) {
-                    FirebaseCrash.report(new Throwable("Empty cell queue after search."));
-                    lowPriorityCells.removeAll(visitedCells);
-
-                    // If we've visited all of those, then lets just reset and start over
-                    if (lowPriorityCells.isEmpty()) {
-                        FirebaseCrash.report(new Throwable("Empty low priority map."));
-                        resetTime = 0;
+                // None of our neighbors are old enough. Lets expand outward until we find something valid to search.
+                HashSet<S2CellId> processedNeighbors = new HashSet<>();
+                processedNeighbors.addAll(currentNeighbors);
+                while (cellQueue.isEmpty()) {
+                    // Get the neighbors of our neighbors.
+                    HashSet<S2CellId> unprocessedNeighbors = new HashSet<>();
+                    for (S2CellId cell : processedNeighbors) {
+                        ArrayList<S2CellId> cellNeighbors = new ArrayList<>();
+                        cell.getAllNeighbors(S2CELL_LEVEL, cellNeighbors);
+                        unprocessedNeighbors.addAll(cellNeighbors);
                     }
+
+                    // Remove neighbors we've already checked, so we only have the outer layer of neighbors.
+                    unprocessedNeighbors.removeAll(processedNeighbors);
+
+                    // Check if any of these are old enough
+                    for (S2CellId cell : unprocessedNeighbors) {
+                        Long cellTime = cellTimes.get(cell.id());
+                        if (cellTime == null || time > cellTime + RESET_TIMEOUT - RESET_THREDHOLD) {
+                            cellQueue.add(cell);
+                        }
+                    }
+                    processedNeighbors = unprocessedNeighbors;
                 }
 
-                visitedCells.add(curCell);
+                cellTimes.put(curCell.id(), time);
+                if (curCell.id() == locCell.id()) {
+                    currentCellTime = time;
+                }
             }
             mPokemonThread = null;
         }

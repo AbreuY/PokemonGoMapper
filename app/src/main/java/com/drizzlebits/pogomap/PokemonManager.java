@@ -34,6 +34,7 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
     public interface LocationFinder {
         LatLng getLocation();
         boolean isReady();
+        void drawDebugMarker(LatLng loc);
     }
 
     private static PokemonManager sInstance;

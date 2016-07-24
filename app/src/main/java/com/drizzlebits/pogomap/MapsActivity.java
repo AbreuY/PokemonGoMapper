@@ -76,6 +76,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Runnable mUpdateLocationRunnable;
     private LatLng mMapLocation;
     private boolean mMapLocationOn;
+    private Marker mDebugMarker;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -396,6 +397,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public boolean isReady() {
         return mLocationFinder.isReady();
+    }
+
+    @Override
+    public void drawDebugMarker(final LatLng loc) {
+        mMainHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (mDebugMarker != null) {
+                    mDebugMarker.remove();
+                }
+                mDebugMarker = mMap.addMarker(new MarkerOptions().position(loc));
+            }
+        });
     }
 
     private class PokemonViewHolder extends RecyclerView.ViewHolder {

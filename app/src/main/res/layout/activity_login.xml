@@ -81,6 +81,11 @@
         <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:text="@string/account_warning"/>
+
+        <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 style="?android:textAppearanceSmall"
                 android:layout_weight="1"
                 android:gravity="bottom"
