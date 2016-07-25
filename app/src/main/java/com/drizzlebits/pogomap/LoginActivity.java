@@ -191,7 +191,7 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
                 public void onResponse(Call call, Response response) throws IOException {
                     GoogleAuthTokenJson token = new Gson().fromJson(response.body().string(), GoogleAuthTokenJson.class);
                     mPokemonNetwork = PokemonNetwork.getInstance(getApplicationContext());
-                    final boolean success = mPokemonNetwork.loginGoogle(token.getIdToken());
+                    final boolean success = token.getId_token() != null && mPokemonNetwork.loginGoogle(token.getId_token());
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {

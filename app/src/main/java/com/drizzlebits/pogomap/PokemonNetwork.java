@@ -1,7 +1,7 @@
 package com.drizzlebits.pogomap;
 
 import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
-import POGOProtos.Networking.Envelopes.RequestEnvelopeOuterClass;
+import POGOProtos.Networking.EnvelopesOuterClass;
 import android.content.Context;
 import android.content.SharedPreferences;
 import com.google.android.gms.maps.model.LatLng;
@@ -10,7 +10,7 @@ import com.pokegoapi.api.PokemonGo;
 import com.pokegoapi.api.map.MapObjects;
 import com.pokegoapi.auth.GoogleLogin;
 import com.pokegoapi.auth.Login;
-import com.pokegoapi.auth.PtcLogin;
+import com.pokegoapi.auth.PTCLogin;
 import com.pokegoapi.google.common.geometry.S2CellId;
 import com.pokegoapi.google.common.geometry.S2LatLng;
 import okhttp3.OkHttpClient;
@@ -43,7 +43,7 @@ public class PokemonNetwork {
         public Login getLogin(OkHttpClient httpClient) {
             switch (this) {
                 case PTC:
-                    return new PtcLogin(httpClient);
+                    return new PTCLogin(httpClient);
                 case GOOGLE:
                 default:
                     return new GoogleLogin(httpClient);
@@ -125,16 +125,20 @@ public class PokemonNetwork {
                     FirebaseCrash.report(e);
                     continue;
                 }
+                if (mapObjects == null) {
+                    FirebaseCrash.report(new Throwable("Null map objects"));
+                    continue;
+                }
 
                 Collection<WildPokemonOuterClass.WildPokemon> wildPokemons = mapObjects.getWildPokemons();
                 if (wildPokemons == null) {
-                    FirebaseCrash.report(new Exception("Null wild pokemon"));
+                    FirebaseCrash.report(new Throwable("Null wild pokemon"));
                     continue;
                 }
 
                 time = System.currentTimeMillis();
                 for (WildPokemonOuterClass.WildPokemon pokemon : wildPokemons) {
-                    mPokemonListener.onPokemonFound(pokemon.getSpawnPointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), time + pokemon.getTimeTillHiddenMs());
+                    mPokemonListener.onPokemonFound(pokemon.getSpawnpointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), time + pokemon.getTimeTillHiddenMs());
                 }
 
                 // Find new neighbors
@@ -226,7 +230,7 @@ public class PokemonNetwork {
             return false;
         }
 
-        RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth;
+        EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth;
         try {
             LoginService loginService = LoginService.valueOf(tokenMethod);
             auth = loginService.getLogin(mHttpClient).login(token);
@@ -248,9 +252,9 @@ public class PokemonNetwork {
     }
 
     public boolean loginPTC(String username, String password) {
-        RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth;
+        EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth;
         try {
-            auth = new PtcLogin(mHttpClient).login(username, password);
+            auth = new PTCLogin(mHttpClient).login(username, password);
         } catch (Exception e) {
             FirebaseCrash.report(e);
             return false;
@@ -263,7 +267,7 @@ public class PokemonNetwork {
         return login(new GoogleLogin(mHttpClient).login(token), LoginService.GOOGLE);
     }
 
-    private boolean login(RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth, LoginService method) {
+    private boolean login(EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth, LoginService method) {
         try {
             mGo = new PokemonGo(auth, mHttpClient);
         } catch (Exception e) {
