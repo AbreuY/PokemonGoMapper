@@ -34,6 +34,8 @@ import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.pokegoapi.auth.GoogleAuthTokenJson;
 import com.pokegoapi.auth.GoogleLogin;
+import com.pokegoapi.auth.GoogleLoginSecrets;
+import com.squareup.moshi.Moshi;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.FormBody;
@@ -163,14 +165,14 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
 
             RequestBody body = new FormBody.Builder()
                     .add("code", code)
-                    .add("client_id", GoogleLogin.CLIENT_ID)
-                    .add("client_secret", GoogleLogin.SECRET)
+                    .add("client_id", GoogleLoginSecrets.CLIENT_ID)
+                    .add("client_secret", GoogleLoginSecrets.SECRET)
                     .add("redirect_uri", "http://127.0.0.1:9004")
                     .add("grant_type", "authorization_code")
                     .build();
 
             Request req = new Request.Builder()
-                    .url(GoogleLogin.OAUTH_TOKEN_ENDPOINT)
+                    .url(GoogleLoginSecrets.OAUTH_TOKEN_ENDPOINT)
                     .method("POST", body)
                     .build();
 
@@ -189,9 +191,11 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
 
                 @Override
                 public void onResponse(Call call, Response response) throws IOException {
-                    GoogleAuthTokenJson token = new Gson().fromJson(response.body().string(), GoogleAuthTokenJson.class);
+                    Moshi moshi = (new com.squareup.moshi.Moshi.Builder()).build();
+                    GoogleAuthTokenJson token = moshi.adapter(GoogleAuthTokenJson.class).fromJson(response.body().string());
                     mPokemonNetwork = PokemonNetwork.getInstance(getApplicationContext());
-                    final boolean success = token.getId_token() != null && mPokemonNetwork.loginGoogle(token.getId_token());
+                    final boolean success = token.getIdToken() != null && token.getRefreshToken() != null;
+                    mPokemonNetwork.loginGoogle(token.getIdToken(), token.getRefreshToken());
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {

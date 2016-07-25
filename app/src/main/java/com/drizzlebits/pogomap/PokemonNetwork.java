@@ -1,7 +1,7 @@
 package com.drizzlebits.pogomap;
 
 import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
-import POGOProtos.Networking.EnvelopesOuterClass;
+import POGOProtos.Networking.Envelopes.RequestEnvelopeOuterClass;
 import android.content.Context;
 import android.content.SharedPreferences;
 import com.google.android.gms.maps.model.LatLng;
@@ -10,7 +10,7 @@ import com.pokegoapi.api.PokemonGo;
 import com.pokegoapi.api.map.MapObjects;
 import com.pokegoapi.auth.GoogleLogin;
 import com.pokegoapi.auth.Login;
-import com.pokegoapi.auth.PTCLogin;
+import com.pokegoapi.auth.PtcLogin;
 import com.pokegoapi.google.common.geometry.S2CellId;
 import com.pokegoapi.google.common.geometry.S2LatLng;
 import okhttp3.OkHttpClient;
@@ -25,13 +25,14 @@ public class PokemonNetwork {
     private static final String TAG = PokemonNetwork.class.getSimpleName();
 
     private static final long LOCATION_UPDATE_POLL = 1000; // 1 second
-    private static final long RESET_TIMEOUT = 1000 * 60 * 5; // 10 minutes
-    private static final long RESET_THREDHOLD = 1000 * 60; // 1 minute
+    private static final long RESET_TIMEOUT = 1000 * 60 * 2; // 2 minutes
+    private static final long RESET_THREDHOLD = 1000 * 30; // 30 seconds
     private static final long THEAD_SLEEP = 100; // 1/10 second;
 
     private static final int S2CELL_LEVEL = 15;
 
-    private static final String PREFS_KEY_TOKEN = "token";
+    private static final String PREFS_KEY_ID_TOKEN = "id_token";
+    private static final String PREFS_KEY_REFRESH_TOKEN = "refresh_token";
     private static final String PREFS_KEY_TOKEN_SERVICE = "token_service";
 
     private static PokemonNetwork sInstance;
@@ -43,7 +44,7 @@ public class PokemonNetwork {
         public Login getLogin(OkHttpClient httpClient) {
             switch (this) {
                 case PTC:
-                    return new PTCLogin(httpClient);
+                    return new PtcLogin(httpClient);
                 case GOOGLE:
                 default:
                     return new GoogleLogin(httpClient);
@@ -125,20 +126,16 @@ public class PokemonNetwork {
                     FirebaseCrash.report(e);
                     continue;
                 }
-                if (mapObjects == null) {
-                    FirebaseCrash.report(new Throwable("Null map objects"));
-                    continue;
-                }
 
                 Collection<WildPokemonOuterClass.WildPokemon> wildPokemons = mapObjects.getWildPokemons();
                 if (wildPokemons == null) {
-                    FirebaseCrash.report(new Throwable("Null wild pokemon"));
+                    FirebaseCrash.report(new Exception("Null wild pokemon"));
                     continue;
                 }
 
                 time = System.currentTimeMillis();
                 for (WildPokemonOuterClass.WildPokemon pokemon : wildPokemons) {
-                    mPokemonListener.onPokemonFound(pokemon.getSpawnpointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), time + pokemon.getTimeTillHiddenMs());
+                    mPokemonListener.onPokemonFound(pokemon.getSpawnPointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), time + pokemon.getTimeTillHiddenMs());
                 }
 
                 // Find new neighbors
@@ -218,22 +215,23 @@ public class PokemonNetwork {
     public boolean trySavedLogin() {
         SharedPreferences prefs = getPrefs();
 
-        String token = prefs.getString(PREFS_KEY_TOKEN, null);
-        if (token == null) {
+        String idToken = prefs.getString(PREFS_KEY_ID_TOKEN, null);
+        if (idToken == null) {
             return false;
         }
 
         String tokenMethod = prefs.getString(PREFS_KEY_TOKEN_SERVICE, null);
         if (tokenMethod == null) {
-            /*prefs.edit().putString("token_login_method", null);
-            prefs.edit().putString("token", null);*/
             return false;
         }
 
-        EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth;
+        String refreshToken = prefs.getString(PREFS_KEY_REFRESH_TOKEN, null);
+
+        RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth;
         try {
             LoginService loginService = LoginService.valueOf(tokenMethod);
-            auth = loginService.getLogin(mHttpClient).login(token);
+            Login login = loginService.getLogin(mHttpClient);
+            auth = refreshToken == null ? login.login(idToken) : login.login(idToken, refreshToken);
         } catch (Exception e) {
             // shouldn't happen. need to refactor login to not throw
             FirebaseCrash.report(e);
@@ -244,7 +242,7 @@ public class PokemonNetwork {
             mGo = new PokemonGo(auth, mHttpClient);
         } catch (Exception e) {
             FirebaseCrash.report(e);
-            prefs.edit().remove(PREFS_KEY_TOKEN).remove(PREFS_KEY_TOKEN_SERVICE).apply();
+            prefs.edit().remove(PREFS_KEY_ID_TOKEN).remove(PREFS_KEY_TOKEN_SERVICE).remove(PREFS_KEY_REFRESH_TOKEN).apply();
             return false;
         }
 
@@ -252,9 +250,9 @@ public class PokemonNetwork {
     }
 
     public boolean loginPTC(String username, String password) {
-        EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth;
+        RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth;
         try {
-            auth = new PTCLogin(mHttpClient).login(username, password);
+            auth = new PtcLogin(mHttpClient).login(username, password);
         } catch (Exception e) {
             FirebaseCrash.report(e);
             return false;
@@ -263,11 +261,15 @@ public class PokemonNetwork {
         return login(auth, LoginService.PTC);
     }
 
-    public boolean loginGoogle(String token) {
-        return login(new GoogleLogin(mHttpClient).login(token), LoginService.GOOGLE);
+    public boolean loginGoogle(String idToken, String refreshToken) {
+        boolean success = login(new GoogleLogin(mHttpClient).login(idToken, refreshToken), LoginService.GOOGLE);
+        if (success) {
+            getPrefs().edit().putString(PREFS_KEY_REFRESH_TOKEN, refreshToken).apply();
+        }
+        return success;
     }
 
-    private boolean login(EnvelopesOuterClass.Envelopes.RequestEnvelope.AuthInfo auth, LoginService method) {
+    private boolean login(RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth, LoginService method) {
         try {
             mGo = new PokemonGo(auth, mHttpClient);
         } catch (Exception e) {
@@ -276,7 +278,7 @@ public class PokemonNetwork {
         }
 
         SharedPreferences.Editor prefs = getPrefs().edit();
-        prefs.putString(PREFS_KEY_TOKEN, auth.getToken().getContents());
+        prefs.putString(PREFS_KEY_ID_TOKEN, auth.getToken().getContents());
         prefs.putString(PREFS_KEY_TOKEN_SERVICE, method.name());
         prefs.apply();
 
@@ -290,7 +292,8 @@ public class PokemonNetwork {
         }
 
         SharedPreferences.Editor prefs = getPrefs().edit();
-        prefs.putString(PREFS_KEY_TOKEN, null);
+        prefs.putString(PREFS_KEY_ID_TOKEN, null);
+        prefs.putString(PREFS_KEY_REFRESH_TOKEN, null);
         prefs.putString(PREFS_KEY_TOKEN_SERVICE, null);
         prefs.apply();
     }
