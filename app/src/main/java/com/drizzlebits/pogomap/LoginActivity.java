@@ -159,7 +159,12 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == REQUEST_CODE_LOGIN_GOOGLE && data != null) {
+        if (requestCode == REQUEST_CODE_LOGIN_GOOGLE) {
+            if (data == null || !data.hasExtra(GoogleLoginActivity.EXTRA_CODE)) {
+                Toast.makeText(LoginActivity.this, "Unable to log into Google", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             showProgress(true);
             String code = data.getStringExtra(GoogleLoginActivity.EXTRA_CODE);
 

@@ -97,12 +97,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+        mLocationFinder = GmsLocationFinder.getInstance(this);
 
         mMainHandler = new Handler(getMainLooper());
         mUpdateLocationRunnable = new Runnable() {
             @Override
             public void run() {
-                mMapLocation = mMap.getCameraPosition().target;
+                if (mMap != null && mMap.getCameraPosition() != null) {
+                    mMapLocation = mMap.getCameraPosition().target;
+                }
                 mMainHandler.postDelayed(this, 1000);
             }
         };
@@ -333,7 +336,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void connectToPokemon() {
-        mLocationFinder = GmsLocationFinder.getInstance(this);
         if (!mLocationFinder.isReady()) {
             mLocationFinder.addListener(this);
             mLocationFinder.init();
@@ -381,6 +383,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private boolean checkZoomFiltered() {
+        if (mSavedCameraPosition == null) return false;
+
         float zoomFactor = Math.min(100, mNumVisiblePokemon) / mSavedCameraPosition.zoom * 1.7f;
         mZoomFilter = mSavedCameraPosition.zoom < zoomFactor;
         return mZoomFilter;
