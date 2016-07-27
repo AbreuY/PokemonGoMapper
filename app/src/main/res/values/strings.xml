@@ -24,7 +24,10 @@
     <string name="banner_ad_unit_id">ca-app-pub-8757602030251852/7047687921</string>
 
     <string name="change_log">
-        Version 1.6 - 7/25/16\n\n\n
-        Fixed a bunch of crashes.
+        Version 1.7 - 7/27/16\n\n\n
+        - Added banner to map that indicates when Pokemon Go servers are down.\n\n
+        - Fixed auto-login issues with Pokemon Trainer Club accounts.\n\n
+        - Fixed login crash with Google accounts.\n\n
+        - Fixed flickering issue with Pokemon that have negative expiration times.
     </string>
 </resources>
