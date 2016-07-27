@@ -159,61 +159,67 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == REQUEST_CODE_LOGIN_GOOGLE) {
-            if (data == null || !data.hasExtra(GoogleLoginActivity.EXTRA_CODE)) {
-                Toast.makeText(LoginActivity.this, "Unable to log into Google", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            showProgress(true);
-            String code = data.getStringExtra(GoogleLoginActivity.EXTRA_CODE);
-
-            RequestBody body = new FormBody.Builder()
-                    .add("code", code)
-                    .add("client_id", GoogleLoginSecrets.CLIENT_ID)
-                    .add("client_secret", GoogleLoginSecrets.SECRET)
-                    .add("redirect_uri", "http://127.0.0.1:9004")
-                    .add("grant_type", "authorization_code")
-                    .build();
-
-            Request req = new Request.Builder()
-                    .url(GoogleLoginSecrets.OAUTH_TOKEN_ENDPOINT)
-                    .method("POST", body)
-                    .build();
-
-            mHttpClient.newCall(req).enqueue(new Callback() {
-                @Override
-                public void onFailure(Call call, IOException e) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            showProgress(false);
-                            Toast.makeText(LoginActivity.this, "Unable to log into Google", Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                    FirebaseCrash.report(e);
+        try {
+            if (requestCode == REQUEST_CODE_LOGIN_GOOGLE) {
+                if (data == null || data.getStringExtra(GoogleLoginActivity.EXTRA_CODE) == null) {
+                    Toast.makeText(LoginActivity.this, "Unable to log into Google", Toast.LENGTH_SHORT).show();
+                    return;
                 }
 
-                @Override
-                public void onResponse(Call call, Response response) throws IOException {
-                    Moshi moshi = (new com.squareup.moshi.Moshi.Builder()).build();
-                    GoogleAuthTokenJson token = moshi.adapter(GoogleAuthTokenJson.class).fromJson(response.body().string());
-                    mPokemonNetwork = PokemonNetwork.getInstance(getApplicationContext());
-                    final boolean success = token.getIdToken() != null && token.getRefreshToken() != null;
-                    mPokemonNetwork.loginGoogle(token.getIdToken(), token.getRefreshToken());
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            showProgress(false);
-                            if (success) {
-                                startActivity(new Intent(getApplicationContext(), MapsActivity.class));
-                            } else {
-                                Toast.makeText(LoginActivity.this, "Unable to log in", Toast.LENGTH_SHORT).show();
+                showProgress(true);
+                String code = data.getStringExtra(GoogleLoginActivity.EXTRA_CODE);
+
+                RequestBody body = new FormBody.Builder()
+                        .add("code", code)
+                        .add("client_id", GoogleLoginSecrets.CLIENT_ID)
+                        .add("client_secret", GoogleLoginSecrets.SECRET)
+                        .add("redirect_uri", "http://127.0.0.1:9004")
+                        .add("grant_type", "authorization_code")
+                        .build();
+
+                Request req = new Request.Builder()
+                        .url(GoogleLoginSecrets.OAUTH_TOKEN_ENDPOINT)
+                        .method("POST", body)
+                        .build();
+
+                mHttpClient.newCall(req).enqueue(new Callback() {
+                    @Override
+                    public void onFailure(Call call, IOException e) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                showProgress(false);
+                                Toast.makeText(LoginActivity.this, "Unable to log into Google", Toast.LENGTH_SHORT).show();
                             }
-                        }
-                    });
-                }
-            });
+                        });
+                        FirebaseCrash.report(e);
+                    }
+
+                    @Override
+                    public void onResponse(Call call, Response response) throws IOException {
+                        Moshi moshi = (new com.squareup.moshi.Moshi.Builder()).build();
+                        GoogleAuthTokenJson token = moshi.adapter(GoogleAuthTokenJson.class).fromJson(response.body().string());
+                        mPokemonNetwork = PokemonNetwork.getInstance(getApplicationContext());
+                        final boolean success = token.getIdToken() != null && token.getRefreshToken() != null;
+                        mPokemonNetwork.loginGoogle(token.getIdToken(), token.getRefreshToken());
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                showProgress(false);
+                                if (success) {
+                                    startActivity(new Intent(getApplicationContext(), MapsActivity.class));
+                                } else {
+                                    Toast.makeText(LoginActivity.this, "Unable to log in", Toast.LENGTH_SHORT).show();
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        } catch (Exception e) {
+            // Feels so dirty, but the stack trace isn't telling me shit, so I need to catch all
+            FirebaseCrash.report(new Throwable(e));
+            Toast.makeText(LoginActivity.this, "Unable to log into Google", Toast.LENGTH_SHORT).show();
         }
     }
 
