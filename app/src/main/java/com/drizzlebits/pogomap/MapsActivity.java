@@ -42,6 +42,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
+import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -523,11 +524,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         synchronized (sDataLock) {
             LatLng loc = new LatLng(pokemon.latitude, pokemon.longitude);
 
-            SimpleDateFormat formatter = new SimpleDateFormat("hh:mm:ss a");
-            String dateString = formatter.format(new Date(pokemon.expirationTime));
-            String title = pokemon.Name + " disappears at " + dateString;
+            DateFormat formatter = SimpleDateFormat.getTimeInstance();
+            String dateString = "Disappears at " + formatter.format(new Date(pokemon.expirationTime));
 
-            Marker marker = mMap.addMarker(new MarkerOptions().position(loc).title(title)
+            Marker marker = mMap.addMarker(new MarkerOptions().position(loc).title(pokemon.Name).snippet(dateString)
                     .icon(BitmapDescriptorFactory.fromResource(mPokemonManager.getIconRes(pokemon.Number - 1))));
 
             mPokemonMarkers.put(pokemon, marker);
