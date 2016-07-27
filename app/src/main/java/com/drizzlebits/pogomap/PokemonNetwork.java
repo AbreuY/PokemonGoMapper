@@ -11,10 +11,14 @@ import com.pokegoapi.api.map.MapObjects;
 import com.pokegoapi.auth.GoogleLogin;
 import com.pokegoapi.auth.Login;
 import com.pokegoapi.auth.PtcLogin;
+import com.pokegoapi.exceptions.LoginFailedException;
+import com.pokegoapi.exceptions.RemoteServerException;
 import com.pokegoapi.google.common.geometry.S2CellId;
 import com.pokegoapi.google.common.geometry.S2LatLng;
 import okhttp3.OkHttpClient;
 
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,7 +31,8 @@ public class PokemonNetwork {
     private static final long LOCATION_UPDATE_POLL = 1000; // 1 second
     private static final long RESET_TIMEOUT = 1000 * 60 * 2; // 2 minutes
     private static final long RESET_THREDHOLD = 1000 * 30; // 30 seconds
-    private static final long THEAD_SLEEP = 100; // 1/10 second;
+    private static final long THREAD_SLEEP = 100; // 1/10 second;
+    private static final long THREAD_DISCONNECT_SLEEP = 1000 * 5; // 5 seconds
 
     private static final int S2CELL_LEVEL = 15;
 
@@ -62,6 +67,7 @@ public class PokemonNetwork {
 
     public interface PokemonListener {
         void onPokemonFound(String spawnId, double lat, double lng, int pokemonNumber, long timeTilHidden);
+        void onError(boolean logout);
     }
 
     private final Context mContext;
@@ -78,10 +84,11 @@ public class PokemonNetwork {
             LatLng loc;
             S2CellId locCell = null;
             long locationTime = 0;
+            boolean disconnected = false;
 
             while (!isInterrupted()) {
                 try {
-                    Thread.sleep(THEAD_SLEEP);
+                    Thread.sleep(disconnected ? THREAD_DISCONNECT_SLEEP : THREAD_SLEEP);
                 } catch (InterruptedException e) {
                     break;
                 }
@@ -122,10 +129,27 @@ public class PokemonNetwork {
                 MapObjects mapObjects;
                 try {
                     mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 1);
+                } catch (RemoteServerException e) {
+                    FirebaseCrash.report(e);
+                    if (e.getCause() instanceof UnknownHostException || e.getCause() instanceof SocketTimeoutException) {
+                        mPokemonListener.onError(false);
+                        disconnected = true;
+                        FirebaseCrash.report(e);
+                    }
+                    continue;
+                } catch (LoginFailedException e) {
+                    FirebaseCrash.report(e);
+                    if (trySavedLogin()) {
+                        continue;
+                    } else {
+                        mPokemonListener.onError(true);
+                        break;
+                    }
                 } catch (Exception e) {
                     FirebaseCrash.report(e);
                     continue;
                 }
+                disconnected = false;
 
                 Collection<WildPokemonOuterClass.WildPokemon> wildPokemons = mapObjects.getWildPokemons();
                 if (wildPokemons == null) {
@@ -135,7 +159,8 @@ public class PokemonNetwork {
 
                 time = System.currentTimeMillis();
                 for (WildPokemonOuterClass.WildPokemon pokemon : wildPokemons) {
-                    mPokemonListener.onPokemonFound(pokemon.getSpawnPointId(), pokemon.getLatitude(), pokemon.getLongitude(), pokemon.getPokemonData().getPokemonId().getNumber(), time + pokemon.getTimeTillHiddenMs());
+                    mPokemonListener.onPokemonFound(pokemon.getSpawnPointId(), pokemon.getLatitude(), pokemon.getLongitude(),
+                            pokemon.getPokemonData().getPokemonId().getNumber(), time + pokemon.getTimeTillHiddenMs());
                 }
 
                 // Find new neighbors
@@ -233,7 +258,6 @@ public class PokemonNetwork {
             Login login = loginService.getLogin(mHttpClient);
             auth = refreshToken == null ? login.login(idToken) : login.login(idToken, refreshToken);
         } catch (Exception e) {
-            // shouldn't happen. need to refactor login to not throw
             FirebaseCrash.report(e);
             return false;
         }

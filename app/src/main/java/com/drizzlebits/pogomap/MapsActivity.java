@@ -23,6 +23,7 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.ToggleButton;
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.AdView;
@@ -63,9 +64,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final Object sDataLock = new Object();
 
     private PokemonManager mPokemonManager;
+
     private GoogleMap mMap;
     private ToggleButton mLocationToggle;
     private TextView mZoomFilterText;
+    private TextView mErrorText;
+
     private GmsLocationFinder mLocationFinder;
     private CameraPosition mSavedCameraPosition;
 
@@ -111,6 +115,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         };
 
         mZoomFilterText = (TextView) findViewById(R.id.zoom_filter_text);
+        mErrorText = (TextView) findViewById(R.id.error_text);
 
         mLocationToggle = (ToggleButton) findViewById(R.id.location_toggle);
         mLocationToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -344,6 +349,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        if (mMap != null && mLocationFinder != null && mLocationFinder.isReady()) {
+            // Should do nothing if we are already searching.
+            mPokemonManager.startSearching();
+        }
+    }
+
     /**
      * Manipulates the map once available.
      * This callback is triggered when the map is ready to be used.
@@ -464,6 +479,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
 
                 addPokemonToMap(pokemon);
+                mErrorText.setVisibility(View.GONE);
             }
         });
     }
@@ -481,6 +497,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
             }
         });
+    }
+
+    @Override
+    public void onError(boolean logout) {
+        if (logout) {
+            finish();
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Toast.makeText(getApplicationContext(), "Login error. Please try again.", Toast.LENGTH_LONG).show();
+                }
+            });
+        } else {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    mErrorText.setVisibility(View.VISIBLE);
+                }
+            });
+        }
     }
 
     private void addPokemonToMap(Pokemon pokemon) {

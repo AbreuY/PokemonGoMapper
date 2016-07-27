@@ -29,6 +29,7 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
     public interface PokemonListener {
         void onPokemonFound(Pokemon pokemon);
         void onPokemonExpired(Pokemon pokemon);
+        void onError(boolean logout);
     }
 
     public interface LocationFinder {
@@ -222,6 +223,11 @@ public class PokemonManager implements PokemonNetwork.PokemonListener {
     @Override
     public void onPokemonFound(String spawnId, double lat, double lng, int pokemonNumber, long timeTilHidden) {
         addPokemon(true, spawnId, lat, lng, pokemonNumber, timeTilHidden);
+    }
+
+    @Override
+    public void onError(boolean logout) {
+        mPokemonListener.onError(logout);
     }
 
     private void addPokemon(boolean writeDb, String spawnId, double lat, double lng, int pokemonNumber, long expirationTime) {
