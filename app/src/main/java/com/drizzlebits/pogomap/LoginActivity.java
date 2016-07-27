@@ -15,7 +15,6 @@ import android.os.AsyncTask;
 
 import android.os.Build;
 import android.os.Bundle;
-import android.text.Html;
 import android.text.Spannable;
 import android.text.TextUtils;
 import android.view.KeyEvent;
@@ -31,9 +30,7 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.firebase.crash.FirebaseCrash;
-import com.google.gson.Gson;
 import com.pokegoapi.auth.GoogleAuthTokenJson;
-import com.pokegoapi.auth.GoogleLogin;
 import com.pokegoapi.auth.GoogleLoginSecrets;
 import com.squareup.moshi.Moshi;
 import okhttp3.Call;
@@ -200,19 +197,11 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
                         Moshi moshi = (new com.squareup.moshi.Moshi.Builder()).build();
                         GoogleAuthTokenJson token = moshi.adapter(GoogleAuthTokenJson.class).fromJson(response.body().string());
                         mPokemonNetwork = PokemonNetwork.getInstance(getApplicationContext());
-                        final boolean success = token.getIdToken() != null && token.getRefreshToken() != null;
-                        mPokemonNetwork.loginGoogle(token.getIdToken(), token.getRefreshToken());
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                showProgress(false);
-                                if (success) {
-                                    startActivity(new Intent(getApplicationContext(), MapsActivity.class));
-                                } else {
-                                    Toast.makeText(LoginActivity.this, "Unable to log in", Toast.LENGTH_SHORT).show();
-                                }
-                            }
-                        });
+                        boolean success = false;
+                        if (token.getIdToken() != null && token.getRefreshToken() != null) {
+                            success = mPokemonNetwork.loginGoogle(token.getIdToken(), token.getRefreshToken());
+                        }
+                        handleLoginResult(success);
                     }
                 });
             }
@@ -269,6 +258,20 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
             mAuthTask = new UserLoginTask(email, password);
             mAuthTask.execute((Void) null);
         }
+    }
+
+    private void handleLoginResult(final boolean success) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                showProgress(false);
+                if (success) {
+                    startActivity(new Intent(getApplicationContext(), MapsActivity.class));
+                } else {
+                    Toast.makeText(LoginActivity.this, "Unable to log in", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
     }
 
     /**
@@ -337,12 +340,7 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
             mAuthTask = null;
             showProgress(false);
 
-            if (success) {
-                startActivity(new Intent(getApplicationContext(), MapsActivity.class));
-            } else {
-                mPasswordView.setError(getString(R.string.error_incorrect_password));
-                mPasswordView.requestFocus();
-            }
+            handleLoginResult(success);
         }
 
         @Override
