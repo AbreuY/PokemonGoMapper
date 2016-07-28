@@ -23,6 +23,10 @@
 
     <string name="banner_ad_unit_id">ca-app-pub-8757602030251852/7047687921</string>
 
+    <string name="prefs_key_show_time">show_time</string>
+    <string name="prefs_key_show_remaining">remaining_time</string>
+    <string name="prefs_key_search_my_location">search_location</string>
+
     <string name="change_log">
         Version 1.7 - 7/27/16\n\n\n
         - Added banner to map that indicates when Pokemon Go servers are down.\n\n

@@ -1,11 +1,14 @@
 package com.drizzlebits.pogomap;
 
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.Handler;
+import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.os.Bundle;
@@ -32,6 +35,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
@@ -40,6 +44,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.crash.FirebaseCrash;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.google.maps.android.ui.IconGenerator;
 
 import java.lang.reflect.Type;
 import java.text.DateFormat;
@@ -50,7 +55,8 @@ import java.util.Date;
 import java.util.HashMap;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, PokemonManager.PokemonListener,
-        GmsLocationFinder.ConnectionListener, PokemonManager.LocationFinder, GoogleMap.OnInfoWindowClickListener {
+        GmsLocationFinder.ConnectionListener, PokemonManager.LocationFinder, GoogleMap.OnInfoWindowClickListener,
+        SharedPreferences.OnSharedPreferenceChangeListener {
     private static final String TAG = MapsActivity.class.getSimpleName();
 
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 1337;
@@ -76,7 +82,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private HashMap<Pokemon, Marker> mPokemonMarkers;
 
-    private Runnable mLoadExistingRunnable;
+    private LoadRunnable mLoadExistingRunnable;
+    private Runnable mUpdateMarkersRunnable;
 
     private boolean mAllFiltered;
     private boolean mTempAllFiltered;
@@ -90,19 +97,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Handler mMainHandler;
     private Runnable mUpdateLocationRunnable;
     private LatLng mMapLocation;
-    private boolean mMapLocationOn;
+    private boolean mSearchMyLocation;
     private Marker mDebugMarker;
+
+    private boolean mShowTime;
+    private boolean mShowRemaining;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        setContentView(R.layout.activity_maps);
-        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-                .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
-        mLocationFinder = GmsLocationFinder.getInstance(this);
 
         mMainHandler = new Handler(getMainLooper());
         mUpdateLocationRunnable = new Runnable() {
@@ -115,14 +118,40 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         };
 
+        mUpdateMarkersRunnable = new Runnable() {
+            @Override
+            public void run() {
+                synchronized (sDataLock) {
+                    for (Pokemon pokemon : mPokemonMarkers.keySet()) {
+                        Marker marker = mPokemonMarkers.get(pokemon);
+                        String dateString = getDateString(pokemon);
+                        marker.setIcon(getIcon(pokemon, dateString));
+                        marker.setSnippet(mShowTime ? null : dateString);
+                    }
+                    //mMainHandler.postDelayed(this, 1000);
+                }
+            }
+        };
+
+        PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(this);
+        loadPrefs();
+
+        setContentView(R.layout.activity_maps);
+        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
+        mLocationFinder = GmsLocationFinder.getInstance(this);
+
+
         mZoomFilterText = (TextView) findViewById(R.id.zoom_filter_text);
         mErrorText = (TextView) findViewById(R.id.error_text);
 
-        mLocationToggle = (ToggleButton) findViewById(R.id.location_toggle);
+        /*mLocationToggle = (ToggleButton) findViewById(R.id.location_toggle);
         mLocationToggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                mMapLocationOn = isChecked;
+                mSearchMyLocation = isChecked;
 
                 if (isChecked) {
                     mMainHandler.post(mUpdateLocationRunnable);
@@ -130,7 +159,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     mMainHandler.removeCallbacks(mUpdateLocationRunnable);
                 }
             }
-        });
+        });*/
 
         mPokemonManager = PokemonManager.getInstance(this);
         mPokemonManager.setLocationFinder(this);
@@ -176,6 +205,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         AdView mAdView = (AdView) findViewById(R.id.adView);
         AdRequest adRequest = new AdRequest.Builder()/*.addTestDevice("3BB53778AAAF2CE1AF6ADE3B706393DA")*/.build();
         mAdView.loadAd(adRequest);
+    }
+
+    private void loadPrefs() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        Resources res = getResources();
+
+        mShowTime = prefs.getBoolean(getString(R.string.prefs_key_show_time),
+                res.getBoolean(R.bool.prefs_default_show_time));
+        mShowRemaining = prefs.getBoolean(getString(R.string.prefs_key_show_remaining),
+                res.getBoolean(R.bool.prefs_default_show_remaining));
+
+        /*if (mShowRemaining) {
+            mMainHandler.postDelayed(mUpdateMarkersRunnable, 1000);
+        } else {
+            mMainHandler.removeCallbacks(mUpdateMarkersRunnable);
+        }*/
     }
 
     private void checkAllFiltered() {
@@ -271,7 +316,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                 builder.show();
 
-
                 return true;
 
             case R.id.action_signout:
@@ -279,6 +323,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 finish();
                 return true;
 
+            case R.id.action_settings:
+                startActivity(new Intent(this, SettingsActivity.class));
+                return true;
             default:
                 // If we got here, the user's action was not recognized.
                 // Invoke the superclass to handle it.
@@ -357,6 +404,23 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (mMap != null && mLocationFinder != null && mLocationFinder.isReady()) {
             // Should do nothing if we are already searching.
             mPokemonManager.startSearching();
+        }
+
+        boolean showTime = mShowTime;
+        boolean showRemaining = mShowRemaining;
+        loadPrefs();
+        if (showTime != mShowTime/* || showRemaining != mShowRemaining*/) {
+            /*mPokemonManager.setPokemonListener(null);
+            if (mLoadExistingRunnable != null) {
+                mLoadExistingRunnable.mCancel = true;
+                mLoadExistingRunnable = null;
+            }
+
+            mMap.clear();
+            mPokemonMarkers.clear();
+
+            loadExistingPokemon();*/
+            mMainHandler.post(mUpdateMarkersRunnable);
         }
     }
 
@@ -451,22 +515,44 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mPokemonManager.startSearching();
         mMap.setMyLocationEnabled(true);
 
-        if (mLoadExistingRunnable == null) {
-            mLoadExistingRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    synchronized (sDataLock) {
-                        Pokemon[] pokemons = mPokemonManager.getMapPokemon();
-                        for (Pokemon pokemon : pokemons) {
-                            addPokemonToMap(pokemon);
-                        }
+        loadExistingPokemon();
+    }
 
-                        mPokemonManager.setPokemonListener(MapsActivity.this);
-                        mLoadExistingRunnable = null;
-                    }
-                }
-            };
+    private void loadExistingPokemon() {
+        if (mLoadExistingRunnable == null) {
+            mLoadExistingRunnable = new LoadRunnable();
             runOnUiThread(mLoadExistingRunnable);
+        }
+    }
+
+    @Override
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        if (key.equals(getString(R.string.prefs_key_search_my_location))) {
+            mSearchMyLocation = sharedPreferences.getBoolean(key, true);
+
+            if (mSearchMyLocation) {
+                mMainHandler.removeCallbacks(mUpdateLocationRunnable);
+            } else {
+                mMainHandler.post(mUpdateLocationRunnable);
+            }
+        }
+    }
+
+    private class LoadRunnable implements Runnable {
+        private boolean mCancel;
+
+        @Override
+        public void run() {
+            synchronized (sDataLock) {
+                Pokemon[] pokemons = mPokemonManager.getMapPokemon();
+                for (Pokemon pokemon : pokemons) {
+                    if (mCancel) return;
+                    addPokemonToMap(pokemon);
+                }
+
+                mPokemonManager.setPokemonListener(MapsActivity.this);
+                mLoadExistingRunnable = null;
+            }
         }
     }
 
@@ -524,12 +610,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void addPokemonToMap(Pokemon pokemon) {
         synchronized (sDataLock) {
             LatLng loc = new LatLng(pokemon.latitude, pokemon.longitude);
-
-            DateFormat formatter = SimpleDateFormat.getTimeInstance();
-            String dateString = "Disappears at " + formatter.format(new Date(pokemon.expirationTime));
-
-            Marker marker = mMap.addMarker(new MarkerOptions().position(loc).title(pokemon.Name).snippet(dateString)
-                    .icon(BitmapDescriptorFactory.fromResource(mPokemonManager.getIconRes(pokemon.Number - 1))));
+            String dateString = getDateString(pokemon);
+            BitmapDescriptor icon = getIcon(pokemon, dateString);
+            MarkerOptions options = new MarkerOptions().position(loc).title(pokemon.Name).icon(icon);
+            if (!mShowTime) {
+                options.snippet(dateString);
+            }
+            Marker marker = mMap.addMarker(options);
 
             mPokemonMarkers.put(pokemon, marker);
 
@@ -541,13 +628,40 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    private String getDateString(Pokemon pokemon) {
+        if (mShowRemaining) {
+            long timeRemaining = (pokemon.expirationTime - System.currentTimeMillis()) / 1000;
+            return timeRemaining / 60 + ":" + timeRemaining % 60;
+        } else {
+            DateFormat formatter = SimpleDateFormat.getTimeInstance(DateFormat.SHORT);
+            return formatter.format(new Date(pokemon.expirationTime));
+        }
+    }
+
+    private BitmapDescriptor getIcon(Pokemon pokemon, String dateString) {
+        BitmapDescriptor icon;
+        int iconRes = mPokemonManager.getIconRes(pokemon.Number - 1);
+        if (mShowTime) {
+            IconGenerator iconGenerator = new IconGenerator(this);
+            ViewGroup iconLayout = (ViewGroup) getLayoutInflater().inflate(R.layout.map_marker, null);
+            ((TextView) iconLayout.findViewById(R.id.time)).setText(dateString);
+            ((ImageView) iconLayout.findViewById(R.id.pokemon_icon)).setImageResource(iconRes);
+            iconGenerator.setContentView(iconLayout);
+            iconGenerator.setBackground(null);
+            return BitmapDescriptorFactory.fromBitmap(iconGenerator.makeIcon());
+        } else {
+            return BitmapDescriptorFactory.fromResource(iconRes);
+        }
+    }
+
     @Override
     public LatLng getLocation() {
-        if (mMapLocationOn) {
-            return mMapLocation;
-        } else {
+        if (mSearchMyLocation) {
             Location loc = mLocationFinder.getMyLocation();
             return loc == null ? null : new LatLng(loc.getLatitude(), loc.getLongitude());
+
+        } else {
+            return mMapLocation;
         }
     }
 

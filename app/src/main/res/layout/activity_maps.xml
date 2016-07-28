@@ -17,7 +17,7 @@
                 tools:context="com.drizzlebits.pogomap.MapsActivity"
                 android:name="com.google.android.gms.maps.SupportMapFragment"/>
 
-        <ToggleButton
+        <!--<ToggleButton
                 android:id="@+id/location_toggle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -25,7 +25,7 @@
                 android:layout_margin="7dp"
                 android:layout_gravity="center_horizontal"
                 android:textOn="Search map"
-                android:textOff="Search near me"/>
+                android:textOff="Search near me"/>-->
 
         <TextView
                 android:id="@+id/zoom_filter_text"

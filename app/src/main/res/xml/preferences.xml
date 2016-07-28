@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <CheckBoxPreference
+            android:key="@string/prefs_key_show_time"
+            android:title="Display time on map"
+            android:summary="If enabled, Pokemon expiration time will be displayed directly on the map."
+            android:defaultValue="@bool/prefs_default_show_time" />
+
+    <!--<CheckBoxPreference
+            android:key="@string/prefs_key_show_remaining"
+            android:title="Display time as remaining"
+            android:summary="If enabled, Pokemon time will be shown as minutes:seconds remaining"
+            android:defaultValue="@bool/prefs_default_show_remaining" />-->
+
+    <CheckBoxPreference
+            android:key="@string/prefs_key_search_my_location"
+            android:title="Search my location"
+            android:summary="If enabled, Pokemon will be searched at your GPS location, otherwise search will occur at location where map is showing."
+            android:defaultValue="@bool/prefs_default_search_my_location" />
+
+</PreferenceScreen>
