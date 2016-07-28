@@ -24,10 +24,8 @@
     <string name="banner_ad_unit_id">ca-app-pub-8757602030251852/7047687921</string>
 
     <string name="change_log">
-        Version 1.7 - 7/27/16\n\n\n
-        - Added banner to map that indicates when Pokemon Go servers are down.\n\n
-        - Fixed auto-login issues with Pokemon Trainer Club accounts.\n\n
-        - Fixed login crash with Google accounts.\n\n
-        - Fixed flickering issue with Pokemon that have negative expiration times.
+        Version 1.9 - 7/28/16\n\n\n
+        Roll back to old version. I had accidentally made a change which causes Pokemon to not appear on the map. I
+        am removing that change and going back to an older version until I can fix it. Sorry!
     </string>
 </resources>
