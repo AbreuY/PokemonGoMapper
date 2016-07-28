@@ -1,65 +1,64 @@
-<FrameLayout
+<LinearLayout
         xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:tools="http://schemas.android.com/tools"
         xmlns:ads="http://schemas.android.com/apk/res-auto"
+        android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
-
-    <fragment
+    <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:id="@+id/map"
-            tools:context="com.drizzlebits.pogomap.MapsActivity"
-            android:name="com.google.android.gms.maps.SupportMapFragment"/>
+            android:layout_height="0dp"
+            android:layout_weight="1">
 
-    <LinearLayout
-            android:orientation="vertical"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom">
+        <fragment
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:id="@+id/map"
+                tools:context="com.drizzlebits.pogomap.MapsActivity"
+                android:name="com.google.android.gms.maps.SupportMapFragment"/>
 
-        <com.google.android.gms.ads.AdView
-                android:id="@+id/adView"
+        <ToggleButton
+                android:id="@+id/location_toggle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:alpha="0.5"
+                android:layout_margin="7dp"
                 android:layout_gravity="center_horizontal"
-                ads:adSize="SMART_BANNER"
-                ads:adUnitId="@string/banner_ad_unit_id"/>
+                android:textOn="Search map"
+                android:textOff="Search near me"/>
 
         <TextView
-                android:id="@+id/error_text"
+                android:id="@+id/zoom_filter_text"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                style="?android:textAppearanceMedium"
-                android:text="Error: Unable to connect to Pokemon Go servers"
-                android:gravity="center_horizontal"
+                android:layout_height="match_parent"
+                style="?android:textAppearanceLarge"
+                android:clickable="false"
+                android:focusable="false"
+                android:gravity="center"
+                android:background="#33ffffff"
+                android:filterTouchesWhenObscured="false"
                 android:visibility="gone"
-                android:padding="10dp"
-                android:textColor="@android:color/white"
-                android:background="@color/colorPrimary"/>
+                android:text="Zoom in or apply filter"/>
 
-    </LinearLayout>
+    </FrameLayout>
 
-    <ToggleButton
-            android:id="@+id/location_toggle"
+    <com.google.android.gms.ads.AdView
+            android:id="@+id/adView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:alpha="0.5"
-            android:layout_margin="7dp"
-            android:textOn="Search map"
-            android:textOff="Search near me"/>
+            android:layout_gravity="center_horizontal"
+            ads:adSize="SMART_BANNER"
+            ads:adUnitId="@string/banner_ad_unit_id"/>
 
     <TextView
-            android:id="@+id/zoom_filter_text"
+            android:id="@+id/error_text"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            style="?android:textAppearanceLarge"
-            android:clickable="false"
-            android:focusable="false"
-            android:gravity="center"
-            android:background="#33ffffff"
-            android:filterTouchesWhenObscured="false"
+            android:layout_height="wrap_content"
+            style="?android:textAppearanceMedium"
+            android:text="Error: Unable to connect to Pokemon Go servers"
+            android:gravity="center_horizontal"
             android:visibility="gone"
-            android:text="Zoom in or apply filter"/>
-
-</FrameLayout>
+            android:padding="10dp"
+            android:textColor="@android:color/white"
+            android:background="@color/colorPrimary"/>
+</LinearLayout>
