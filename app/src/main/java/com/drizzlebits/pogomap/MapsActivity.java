@@ -50,7 +50,7 @@ import java.util.Date;
 import java.util.HashMap;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, PokemonManager.PokemonListener,
-        GmsLocationFinder.ConnectionListener, PokemonManager.LocationFinder {
+        GmsLocationFinder.ConnectionListener, PokemonManager.LocationFinder, GoogleMap.OnInfoWindowClickListener {
     private static final String TAG = MapsActivity.class.getSimpleName();
 
     private static final int PERMISSIONS_REQUEST_FINE_LOCATION = 1337;
@@ -372,6 +372,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        mMap.setOnInfoWindowClickListener(this);
 
         mMap.setOnCameraChangeListener(new GoogleMap.OnCameraChangeListener() {
             @Override
@@ -566,6 +567,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mDebugMarker = mMap.addMarker(new MarkerOptions().position(loc));
             }
         });
+    }
+
+    @Override
+    public void onInfoWindowClick(Marker marker) {
+        marker.hideInfoWindow();
     }
 
     private class PokemonViewHolder extends RecyclerView.ViewHolder {
