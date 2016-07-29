@@ -31,7 +31,7 @@ import com.google.android.gms.common.SignInButton;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.firebase.crash.FirebaseCrash;
 import com.pokegoapi.auth.GoogleAuthTokenJson;
-import com.pokegoapi.auth.GoogleLoginSecrets;
+import com.pokegoapi.auth.GoogleUserCredentialProvider;
 import com.squareup.moshi.Moshi;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -168,14 +168,14 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
 
                 RequestBody body = new FormBody.Builder()
                         .add("code", code)
-                        .add("client_id", GoogleLoginSecrets.CLIENT_ID)
-                        .add("client_secret", GoogleLoginSecrets.SECRET)
+                        .add("client_id", GoogleUserCredentialProvider.CLIENT_ID)
+                        .add("client_secret", GoogleUserCredentialProvider.SECRET)
                         .add("redirect_uri", "http://127.0.0.1:9004")
                         .add("grant_type", "authorization_code")
                         .build();
 
                 Request req = new Request.Builder()
-                        .url(GoogleLoginSecrets.OAUTH_TOKEN_ENDPOINT)
+                        .url(GoogleUserCredentialProvider.OAUTH_TOKEN_ENDPOINT)
                         .method("POST", body)
                         .build();
 

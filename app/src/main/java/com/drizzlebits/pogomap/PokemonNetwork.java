@@ -1,7 +1,8 @@
 package com.drizzlebits.pogomap;
 
+import POGOProtos.Map.Pokemon.MapPokemonOuterClass;
+import POGOProtos.Map.Pokemon.NearbyPokemonOuterClass;
 import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
-import POGOProtos.Networking.Envelopes.RequestEnvelopeOuterClass;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
@@ -9,10 +10,13 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.firebase.crash.FirebaseCrash;
 import com.pokegoapi.api.PokemonGo;
 import com.pokegoapi.api.map.MapObjects;
-import com.pokegoapi.auth.GoogleLogin;
-import com.pokegoapi.auth.PtcLogin;
+import com.pokegoapi.api.map.pokemon.CatchablePokemon;
+import com.pokegoapi.auth.CredentialProvider;
+import com.pokegoapi.auth.GoogleUserCredentialProvider;
+import com.pokegoapi.auth.PtcCredentialProvider;
 import com.pokegoapi.exceptions.LoginFailedException;
 import com.pokegoapi.exceptions.RemoteServerException;
+import com.pokegoapi.google.common.geometry.MutableInteger;
 import com.pokegoapi.google.common.geometry.S2CellId;
 import com.pokegoapi.google.common.geometry.S2LatLng;
 import okhttp3.OkHttpClient;
@@ -23,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 
 public class PokemonNetwork {
     private static final String TAG = PokemonNetwork.class.getSimpleName();
@@ -30,10 +35,11 @@ public class PokemonNetwork {
     private static final long LOCATION_UPDATE_POLL = 1000; // 1 second
     private static final long RESET_TIMEOUT = 1000 * 60 * 2; // 2 minutes
     private static final long RESET_THREDHOLD = 1000 * 30; // 30 seconds
-    private static final long THREAD_SLEEP = 100; // 1/10 second;
+    private static final long THREAD_SLEEP = 300; // 3/10 second;
     private static final long THREAD_DISCONNECT_SLEEP = 1000 * 5; // 5 seconds
 
     private static final int S2CELL_LEVEL = 15;
+    private static final int CELL_GROUP_WIDTH = 3;
 
     private static final String PREFS_KEY_LOGIN_SERVICE = "login_service";
     private static final String PREFS_KEY_GOOGLE_ID_TOKEN = "google_id_token";
@@ -76,6 +82,7 @@ public class PokemonNetwork {
             S2CellId locCell = null;
             long locationTime = 0;
             boolean disconnected = false;
+            int cellGroupSize = 0;
 
             while (!isInterrupted()) {
                 try {
@@ -95,6 +102,7 @@ public class PokemonNetwork {
                         locCell = newLocCell;
                         cellQueue.clear();
                         cellQueue.push(locCell);
+                        cellGroupSize = 0;
                     }
                     locationTime = time + LOCATION_UPDATE_POLL;
                 }
@@ -103,6 +111,7 @@ public class PokemonNetwork {
                 if (time > currentCellTime + RESET_TIMEOUT) {
                     cellQueue.clear();
                     cellQueue.add(locCell);
+                    cellGroupSize = 0;
                 }
 
                 // Process current cell
@@ -111,15 +120,13 @@ public class PokemonNetwork {
                     // What? How?
                     currentCellTime = 0;
                     continue;
-                } else {
-                    cellQueue.pop();
                 }
                 S2LatLng latLng = curCell.toLatLng();
                 //mLocationFinder.drawDebugMarker(new LatLng(latLng.latDegrees(), latLng.lngDegrees()));
 
                 MapObjects mapObjects;
                 try {
-                    mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 1);
+                    mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 9);
                 } catch (RemoteServerException e) {
                     FirebaseCrash.report(e);
                     if (e.getCause() instanceof UnknownHostException) {
@@ -139,6 +146,7 @@ public class PokemonNetwork {
                     FirebaseCrash.report(e);
                     continue;
                 }
+                cellQueue.pop();
                 disconnected = false;
 
                 Collection<WildPokemonOuterClass.WildPokemon> wildPokemons = mapObjects.getWildPokemons();
@@ -158,7 +166,23 @@ public class PokemonNetwork {
                             pokemon.getPokemonData().getPokemonId().getNumber(), time + pokemon.getTimeTillHiddenMs());
                 }
 
-                // Find new neighbors
+                Collection<MapPokemonOuterClass.MapPokemon> catchablePokemons = mapObjects.getCatchablePokemons();
+                if (catchablePokemons == null) {
+                    FirebaseCrash.report(new Exception("Null catchable pokemon"));
+                    continue;
+                }
+
+                for (MapPokemonOuterClass.MapPokemon pokemon : catchablePokemons) {
+                    if (pokemon.getExpirationTimestampMs() < time) {
+                        //FirebaseCrash.report(new Throwable("Pokemon with negative hidden time"));
+                        continue;
+                    }
+
+                    mPokemonListener.onPokemonFound(pokemon.getSpawnPointId(), pokemon.getLatitude(), pokemon.getLongitude(),
+                            pokemon.getPokemonId().getNumber(), pokemon.getExpirationTimestampMs());
+                }
+
+                /*// Find new neighbors
                 ArrayList<S2CellId> currentNeighbors = new ArrayList<>();
                 curCell.getAllNeighbors(S2CELL_LEVEL, currentNeighbors);
                 for (S2CellId cell : currentNeighbors) {
@@ -191,6 +215,10 @@ public class PokemonNetwork {
                         }
                     }
                     processedNeighbors = unprocessedNeighbors;
+                }*/
+
+                if (cellQueue.isEmpty()) {
+                    cellQueue.addAll(getNeighborGroupCellIds(locCell, CELL_GROUP_WIDTH, ++cellGroupSize));
                 }
 
                 cellTimes.put(curCell.id(), time);
@@ -240,27 +268,27 @@ public class PokemonNetwork {
 
         LoginService loginService = LoginService.valueOf(login);
         try {
-            RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth;
+            CredentialProvider creds;
             switch (loginService) {
                 case GOOGLE:
                     String idToken = prefs.getString(PREFS_KEY_GOOGLE_ID_TOKEN, null);
                     String refreshToken = prefs.getString(PREFS_KEY_GOOGLE_REFRESH_TOKEN, null);
                     if (idToken == null || refreshToken == null) return false;
 
-                    auth = new GoogleLogin(mHttpClient).login(idToken, refreshToken);
+                    creds = new GoogleUserCredentialProvider(mHttpClient, refreshToken);
                     break;
                 case PTC:
                     String username = prefs.getString(PREFS_KEY_PTC_USERNAME, null);
                     String password = prefs.getString(PREFS_KEY_PTC_PASSWORD, null);
                     if (username == null || password == null) return false;
 
-                    auth = new PtcLogin(mHttpClient).login(decrypt(username), decrypt(password));
+                    creds = new PtcCredentialProvider(mHttpClient, decrypt(username), decrypt(password));
                     break;
                 default:
                     return false;
             }
 
-            mGo = new PokemonGo(auth, mHttpClient);
+            mGo = new PokemonGo(creds, mHttpClient);
         } catch (Exception e) {
             FirebaseCrash.report(e);
             logOut();
@@ -271,15 +299,15 @@ public class PokemonNetwork {
     }
 
     public boolean loginPTC(String username, String password) {
-        RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth;
+        PtcCredentialProvider creds;
         try {
-            auth = new PtcLogin(mHttpClient).login(username, password);
+            creds = new PtcCredentialProvider(mHttpClient, username, password);
         } catch (Exception e) {
             FirebaseCrash.report(e);
             return false;
         }
 
-        boolean success = login(auth, LoginService.PTC);
+        boolean success = login(creds, LoginService.PTC);
         if (success) {
             // This feels dirty, but PTC has no way to refresh login, and these accounts should
             // be throwaways anyway. We will weakly encrypt just to add a tiny bit of safety.
@@ -292,7 +320,14 @@ public class PokemonNetwork {
     }
 
     public boolean loginGoogle(String idToken, String refreshToken) {
-        boolean success = login(new GoogleLogin(mHttpClient).login(idToken, refreshToken), LoginService.GOOGLE);
+        boolean success;
+        try {
+            success = login(new GoogleUserCredentialProvider(mHttpClient, refreshToken), LoginService.GOOGLE);
+        } catch (Exception e) {
+            FirebaseCrash.report(e);
+            return false;
+        }
+
         if (success) {
             getPrefs().edit()
                     .putString(PREFS_KEY_GOOGLE_ID_TOKEN, idToken)
@@ -302,9 +337,9 @@ public class PokemonNetwork {
         return success;
     }
 
-    private boolean login(RequestEnvelopeOuterClass.RequestEnvelope.AuthInfo auth, LoginService method) {
+    private boolean login(CredentialProvider creds, LoginService method) {
         try {
-            mGo = new PokemonGo(auth, mHttpClient);
+            mGo = new PokemonGo(creds, mHttpClient);
         } catch (Exception e) {
             FirebaseCrash.report(e);
             return false;
@@ -342,5 +377,27 @@ public class PokemonNetwork {
 
     private static String decrypt(String input) {
         return new String(Base64.decode(input, Base64.DEFAULT));
+    }
+
+    public List<S2CellId> getNeighborGroupCellIds(S2CellId cellId, int width, int step) {
+        /*S2LatLng latLng = S2LatLng.fromDegrees(latitude, longitude);
+        S2CellId cellId = S2CellId.fromLatLng(latLng).parent(15);*/
+        MutableInteger index = new MutableInteger(0);
+        MutableInteger jindex = new MutableInteger(0);
+        int level = cellId.level();
+        int size = 1 << 30 - level;
+        int face = cellId.toFaceIJOrientation(index, jindex, (MutableInteger)null);
+        ArrayList<S2CellId> cells = new ArrayList<>();
+        int halfWidth = (int)Math.floor((double)(width / 2));
+        int widthStep = halfWidth * step;
+
+        for(int x = -widthStep; x <= widthStep; x += halfWidth) {
+            for(int y = -widthStep; y <= widthStep; y += halfWidth) {
+                if (!((x == -widthStep || x == widthStep) || (y == -widthStep || y == widthStep))) continue;
+                cells.add(S2CellId.fromFaceIJ(face, index.intValue() + x * size, jindex.intValue() + y * size).parent(15));
+            }
+        }
+
+        return cells;
     }
 }
