@@ -150,7 +150,7 @@ public class PokemonNetwork {
                 time = System.currentTimeMillis();
                 for (WildPokemonOuterClass.WildPokemon pokemon : wildPokemons) {
                     if (pokemon.getTimeTillHiddenMs() < 0) {
-                        FirebaseCrash.report(new Throwable("Pokemon with negative hidden time"));
+                        //FirebaseCrash.report(new Throwable("Pokemon with negative hidden time"));
                         continue;
                     }
 
