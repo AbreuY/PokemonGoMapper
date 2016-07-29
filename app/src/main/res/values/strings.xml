@@ -24,8 +24,8 @@
     <string name="banner_ad_unit_id">ca-app-pub-8757602030251852/7047687921</string>
 
     <string name="change_log">
-        Version 1.9 - 7/28/16\n\n\n
-        Roll back to old version. I had accidentally made a change which causes Pokemon to not appear on the map. I
-        am removing that change and going back to an older version until I can fix it. Sorry!
+        Version 1.10 - 7/29/16\n\n\n
+        - Fixed login issues.\n\n
+        - Reduced search speed: unfortunately Pokemon Go servers now have a search speed limit, so I have to slow down the search, otherwise you will get errors or no results.
     </string>
 </resources>
