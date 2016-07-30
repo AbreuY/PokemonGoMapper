@@ -24,6 +24,7 @@
 
     <string name="change_log">
         Version 1.11 - 7/30/16\n\n\n
-        - Updated search algorithm: Niantic modified the way search results work, which meant I was missing a lot of Pokemon from my map. I had to modify the search so it is slower, but now it is more precise and will not be missing anything.
+        - Remove Google login to comply with Google Play Device and Network Abuse policy.\n\n
+        - Updated search algorithm: I had to modify the searching logic so it is now slower, but it is also more precise and should not be miss any Pokemon.
     </string>
 </resources>
