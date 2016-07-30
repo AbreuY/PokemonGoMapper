@@ -23,8 +23,7 @@
     <string name="banner_ad_unit_id">ca-app-pub-8757602030251852/7047687921</string>
 
     <string name="change_log">
-        Version 1.10 - 7/29/16\n\n\n
-        - Fixed login issues.\n\n
-        - Reduced search speed: unfortunately Pokemon Go servers now have a search speed limit, so I have to slow down the search, otherwise you will get errors or no results.
+        Version 1.11 - 7/30/16\n\n\n
+        - Updated search algorithm: Niantic modified the way search results work, which meant I was missing a lot of Pokemon from my map. I had to modify the search so it is slower, but now it is more precise and will not be missing anything.
     </string>
 </resources>
