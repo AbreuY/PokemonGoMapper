@@ -1,7 +1,6 @@
 package com.drizzlebits.pogomap;
 
 import POGOProtos.Map.Pokemon.MapPokemonOuterClass;
-import POGOProtos.Map.Pokemon.NearbyPokemonOuterClass;
 import POGOProtos.Map.Pokemon.WildPokemonOuterClass;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -10,7 +9,6 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.firebase.crash.FirebaseCrash;
 import com.pokegoapi.api.PokemonGo;
 import com.pokegoapi.api.map.MapObjects;
-import com.pokegoapi.api.map.pokemon.CatchablePokemon;
 import com.pokegoapi.auth.CredentialProvider;
 import com.pokegoapi.auth.GoogleUserCredentialProvider;
 import com.pokegoapi.auth.PtcCredentialProvider;
@@ -26,20 +24,20 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 
 public class PokemonNetwork {
     private static final String TAG = PokemonNetwork.class.getSimpleName();
 
     private static final long LOCATION_UPDATE_POLL = 1000; // 1 second
-    private static final long RESET_TIMEOUT = 1000 * 60 * 2; // 2 minutes
+    private static final long RESET_TIMEOUT = 1000 * 60 * 3; // 3 minutes
     private static final long RESET_THREDHOLD = 1000 * 30; // 30 seconds
     private static final long THREAD_SLEEP = 300; // 3/10 second;
     private static final long THREAD_DISCONNECT_SLEEP = 1000 * 5; // 5 seconds
 
-    private static final int S2CELL_LEVEL = 15;
-    private static final int CELL_GROUP_WIDTH = 3;
+    private static final int S2CELL_LEVEL = 17;
+    private static final int CELL_GROUP_WIDTH = 2;
 
     private static final String PREFS_KEY_LOGIN_SERVICE = "login_service";
     private static final String PREFS_KEY_GOOGLE_ID_TOKEN = "google_id_token";
@@ -126,7 +124,7 @@ public class PokemonNetwork {
 
                 MapObjects mapObjects;
                 try {
-                    mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 9);
+                    mapObjects = mGo.getMap().getMapObjects(latLng.latDegrees(), latLng.lngDegrees(), 1);
                 } catch (RemoteServerException e) {
                     FirebaseCrash.report(e);
                     if (e.getCause() instanceof UnknownHostException) {
@@ -148,6 +146,7 @@ public class PokemonNetwork {
                 }
                 cellQueue.pop();
                 disconnected = false;
+
 
                 Collection<WildPokemonOuterClass.WildPokemon> wildPokemons = mapObjects.getWildPokemons();
                 if (wildPokemons == null) {
@@ -182,43 +181,21 @@ public class PokemonNetwork {
                             pokemon.getPokemonId().getNumber(), pokemon.getExpirationTimestampMs());
                 }
 
-                /*// Find new neighbors
-                ArrayList<S2CellId> currentNeighbors = new ArrayList<>();
-                curCell.getAllNeighbors(S2CELL_LEVEL, currentNeighbors);
-                for (S2CellId cell : currentNeighbors) {
-                    Long cellTime = cellTimes.get(cell.id());
-                    if (cellTime == null || time > cellTime + RESET_TIMEOUT - RESET_THREDHOLD) {
-                        cellQueue.add(cell);
-                    }
-                }
-
-                // None of our neighbors are old enough. Lets expand outward until we find something valid to search.
-                HashSet<S2CellId> processedNeighbors = new HashSet<>();
-                processedNeighbors.addAll(currentNeighbors);
+                // Keep expanding search until we find expired cells
                 while (cellQueue.isEmpty()) {
-                    // Get the neighbors of our neighbors.
-                    HashSet<S2CellId> unprocessedNeighbors = new HashSet<>();
-                    for (S2CellId cell : processedNeighbors) {
-                        ArrayList<S2CellId> cellNeighbors = new ArrayList<>();
-                        cell.getAllNeighbors(S2CELL_LEVEL, cellNeighbors);
-                        unprocessedNeighbors.addAll(cellNeighbors);
-                    }
+                    // Get the next layer of neighbors
+                    List<S2CellId> newCells = getNeighborGroupCellIds(locCell, CELL_GROUP_WIDTH, ++cellGroupSize);
 
-                    // Remove neighbors we've already checked, so we only have the outer layer of neighbors.
-                    unprocessedNeighbors.removeAll(processedNeighbors);
-
-                    // Check if any of these are old enough
-                    for (S2CellId cell : unprocessedNeighbors) {
-                        Long cellTime = cellTimes.get(cell.id());
-                        if (cellTime == null || time > cellTime + RESET_TIMEOUT - RESET_THREDHOLD) {
-                            cellQueue.add(cell);
+                    // Remove any that have not yet expired.
+                    for (Iterator<S2CellId> iter = newCells.iterator(); iter.hasNext();) {
+                        Long cellTime = cellTimes.get(iter.next().id());
+                        if (cellTime != null && time < cellTime + RESET_TIMEOUT - RESET_THREDHOLD) {
+                            iter.remove();
                         }
                     }
-                    processedNeighbors = unprocessedNeighbors;
-                }*/
 
-                if (cellQueue.isEmpty()) {
-                    cellQueue.addAll(getNeighborGroupCellIds(locCell, CELL_GROUP_WIDTH, ++cellGroupSize));
+                    // Add remaining to queue
+                    cellQueue.addAll(newCells);
                 }
 
                 cellTimes.put(curCell.id(), time);
@@ -379,23 +356,41 @@ public class PokemonNetwork {
         return new String(Base64.decode(input, Base64.DEFAULT));
     }
 
-    public List<S2CellId> getNeighborGroupCellIds(S2CellId cellId, int width, int step) {
-        /*S2LatLng latLng = S2LatLng.fromDegrees(latitude, longitude);
-        S2CellId cellId = S2CellId.fromLatLng(latLng).parent(15);*/
+    public List<S2CellId> getNeighborGroupCellIds(S2CellId cellId, int width, int steps) {
         MutableInteger index = new MutableInteger(0);
         MutableInteger jindex = new MutableInteger(0);
         int level = cellId.level();
         int size = 1 << 30 - level;
         int face = cellId.toFaceIJOrientation(index, jindex, (MutableInteger)null);
         ArrayList<S2CellId> cells = new ArrayList<>();
-        int halfWidth = (int)Math.floor((double)(width / 2));
-        int widthStep = halfWidth * step;
+        int singleStep = (int)Math.floor((double)(width / 2));
+        int stepRange = singleStep * steps;
 
-        for(int x = -widthStep; x <= widthStep; x += halfWidth) {
-            for(int y = -widthStep; y <= widthStep; y += halfWidth) {
-                if (!((x == -widthStep || x == widthStep) || (y == -widthStep || y == widthStep))) continue;
-                cells.add(S2CellId.fromFaceIJ(face, index.intValue() + x * size, jindex.intValue() + y * size).parent(15));
-            }
+        // Spiral diamond search
+
+        // Bottom edge
+        int x;
+        int y = -stepRange;
+        for (x = -stepRange; x <= stepRange; x += singleStep) {
+            cells.add(S2CellId.fromFaceIJ(face, index.intValue() + x * size, jindex.intValue() + y * size).parent(S2CELL_LEVEL));
+        }
+
+        // Right edge
+        x = stepRange;
+        for (y = -stepRange + singleStep; y <= stepRange; y += singleStep) {
+            cells.add(S2CellId.fromFaceIJ(face, index.intValue() + x * size, jindex.intValue() + y * size).parent(S2CELL_LEVEL));
+        }
+
+        // Top edge
+        y = stepRange;
+        for (x = stepRange - singleStep; x >= -stepRange; x -= singleStep) {
+            cells.add(S2CellId.fromFaceIJ(face, index.intValue() + x * size, jindex.intValue() + y * size).parent(S2CELL_LEVEL));
+        }
+
+        // Left edge
+        x = -stepRange;
+        for (y = stepRange - singleStep; y >= -stepRange + singleStep; y -= singleStep) {
+            cells.add(S2CellId.fromFaceIJ(face, index.intValue() + x * size, jindex.intValue() + y * size).parent(S2CELL_LEVEL));
         }
 
         return cells;
