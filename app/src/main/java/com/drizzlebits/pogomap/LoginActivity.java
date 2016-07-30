@@ -100,7 +100,7 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
         mLoginFormView = findViewById(R.id.login_form);
         mProgressView = findViewById(R.id.login_progress);
 
-        SignInButton signInButton = (SignInButton) findViewById(R.id.google_sign_in_button);
+        /*SignInButton signInButton = (SignInButton) findViewById(R.id.google_sign_in_button);
         signInButton.setSize(SignInButton.SIZE_WIDE);
         signInButton.setOnClickListener(new OnClickListener() {
             @Override
@@ -108,7 +108,7 @@ public class LoginActivity extends AppCompatActivity implements GoogleApiClient.
                 Intent signInIntent = new Intent(LoginActivity.this, GoogleLoginActivity.class);
                 startActivityForResult(signInIntent, REQUEST_CODE_LOGIN_GOOGLE);
             }
-        });
+        });*/
 
         int versionCode = 0;
         try {

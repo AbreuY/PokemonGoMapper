@@ -120,7 +120,7 @@ public class PokemonNetwork {
                     continue;
                 }
                 S2LatLng latLng = curCell.toLatLng();
-                //mLocationFinder.drawDebugMarker(new LatLng(latLng.latDegrees(), latLng.lngDegrees()));
+                mLocationFinder.drawDebugMarker(new LatLng(latLng.latDegrees(), latLng.lngDegrees()));
 
                 MapObjects mapObjects;
                 try {
